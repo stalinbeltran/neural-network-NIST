@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- neural-network-NIST (project-specific) ---
+data/raw/
+data/processed/
+experiments/*
+!experiments/.gitkeep
+*.pt
+*.pth

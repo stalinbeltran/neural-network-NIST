@@ -1,0 +1,11 @@
+# Config de HUMO: 1 época para validar el pipeline end-to-end rápido. No es un experimento real.
+name: mlp_full_smoke
+extends: ../base.yaml
+
+model:
+  name: mlp
+  hidden: [64]
+
+train:
+  epochs: 1
+  batch_size: 256

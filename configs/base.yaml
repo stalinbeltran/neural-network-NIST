@@ -1,0 +1,16 @@
+# Defaults compartidos por todos los experimentos. Las configs de modelos heredan de aquí.
+seed: 0
+
+dataset:
+  name: mnist        # mnist | emnist | nist_sd19
+  # split: digits    # (emnist) digits | letters | byclass  -> determina num_classes
+
+# transform: null    # sin recorte = estrategia "imagen completa"
+
+train:
+  epochs: 10
+  lr: 0.001
+  batch_size: 128
+  optimizer: adam
+  weight_decay: 0.0
+  device: cpu

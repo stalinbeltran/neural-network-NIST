@@ -1,0 +1,12 @@
+# Barrido de hiperparámetros para optimizar el MLP completo.
+# Cada eje bajo `grid` se combina (producto cartesiano) en corridas independientes.
+name: mlp_full_grid
+base: configs/models/mlp_full.yaml
+
+grid:
+  train.lr: [0.01, 0.001, 0.0001]
+  train.batch_size: [64, 128]
+  model.hidden: [[64], [128], [256, 128]]
+
+# Resultado: una fila por corrida (accuracy, nº params, coste) para comparar y elegir.
+# Idea: para estudiar subsets, hacer un sweep análogo variando transform.height/width.

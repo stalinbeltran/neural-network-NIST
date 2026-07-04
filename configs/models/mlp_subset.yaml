@@ -1,0 +1,17 @@
+# Estrategia: MLP sobre un SUBSET de la matriz (ventana central 14x14 de la imagen 28x28).
+# El recorte reduce el area vista por la red -> menos entradas, menos parámetros.
+name: mlp_subset
+extends: ../base.yaml
+
+transform:
+  name: crop_window   # registrada en data/transforms.py
+  top: 7
+  left: 7
+  height: 14
+  width: 14
+  # => input_shape resultante = (1, 14, 14)
+
+model:
+  name: mlp
+  hidden: [128]
+  dropout: 0.0

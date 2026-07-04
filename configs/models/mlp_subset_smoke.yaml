@@ -1,0 +1,18 @@
+# Config de HUMO para la estrategia SUBSET: ventana 14x14, 1 época. Valida el wiring end-to-end.
+name: mlp_subset_smoke
+extends: ../base.yaml
+
+transform:
+  name: crop_window
+  top: 7
+  left: 7
+  height: 14
+  width: 14
+
+model:
+  name: mlp
+  hidden: [64]
+
+train:
+  epochs: 1
+  batch_size: 256

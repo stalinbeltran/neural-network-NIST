@@ -1,0 +1,7 @@
+# Estrategia: CNN sobre la IMAGEN COMPLETA.
+name: cnn_full
+extends: ../base.yaml
+
+model:
+  name: cnn
+  channels: [16, 32]

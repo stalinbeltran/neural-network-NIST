@@ -1,0 +1,12 @@
+# Nota de entorno: PyTorch/torchvision pueden no tener wheels estables para Python 3.14.
+# Recomendado: venv con Python 3.12.
+
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26
+pyyaml>=6.0
+scikit-learn>=1.4      # metricas (precision/recall/F1, confusion matrix)
+matplotlib>=3.8        # graficas de comparacion (accuracy vs nº params, etc.)
+pandas>=2.2            # agregacion/comparacion de resultados de experiments/
+tqdm>=4.66             # barras de progreso
+pytest>=8.0            # tests
