@@ -1,7 +1,7 @@
 # BATERÍA OFAT (un factor a la vez) para el MLP sobre imagen completa.
 # Baseline fijo; se varía UN eje cada vez. Cada config se repite con 5 semillas (init de pesos;
 # el split de datos sigue congelado). Se agrega mean±std por configuración.
-#   8 configuraciones (1 baseline + 2 lr + 2 hidden + 2 batch + 1 dropout) x 5 semillas = 40 corridas.
+#   14 configuraciones (1 baseline + 2 lr + 4 hidden + 4 batch + 3 dropout) x 5 semillas = 70 corridas.
 name: ofat_mlp_full
 base: configs/models/mlp_full.yaml
 mode: ofat
@@ -15,8 +15,10 @@ baseline:
 
 axes:
   train.lr: [0.01, 0.001]
-  model.hidden: [[64], [256, 128]]
-  train.batch_size: [64, 256]
-  model.dropout: [0.2]
+  # 1 capa (64), 1 grande (256-128), 2 capas de 64, y 2 capas de 128:
+  model.hidden: [[64], [256, 128], [64, 64], [128, 128]]
+  # 128 es el baseline; añadimos intermedios 96 y 192 entre los extremos 64 y 256:
+  train.batch_size: [64, 96, 192, 256]
+  model.dropout: [0.1, 0.2, 0.3]
 
 seeds: [0, 1, 2, 3, 4]
