@@ -55,7 +55,7 @@ def run(config, output_root: str = "experiments") -> RunResult:
     test_loader = DataLoader(bundle.test, batch_size=train_cfg.batch_size, shuffle=False)
     trainer = Trainer(model, train_cfg)
     t0 = time.perf_counter()
-    trainer.fit(train_loader, test_loader)
+    history = trainer.fit(train_loader, test_loader)
     train_seconds = time.perf_counter() - t0
 
     # 4. evaluación multi-métrica
@@ -88,6 +88,8 @@ def run(config, output_root: str = "experiments") -> RunResult:
         yaml.safe_dump(config.to_dict(), f, allow_unicode=True, sort_keys=False)
     with open(out_dir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(result.as_dict(), f, indent=2, ensure_ascii=False)
+    with open(out_dir / "history.json", "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2)   # curva de aprendizaje por época (para graficar)
     torch.save(model.state_dict(), out_dir / "model.pt")
     logger.info("Corrida guardada en %s | accuracy=%.4f", out_dir, acc)
     return result

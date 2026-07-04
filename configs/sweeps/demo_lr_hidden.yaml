@@ -1,0 +1,9 @@
+# Sweep DEMO pequeño para validar las gráficas: varía lr y tamaño de capa oculta.
+name: demo_lr_hidden
+base: configs/models/mlp_full.yaml
+
+grid:
+  train.epochs: [3]              # eje de un solo valor => override global rápido para la demo
+  train.lr: [0.01, 0.001]
+  model.hidden: [[32], [128]]
+# => 1 x 2 x 2 = 4 corridas
