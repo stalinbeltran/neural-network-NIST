@@ -2,8 +2,11 @@
 seed: 0
 
 dataset:
-  name: mnist        # mnist | emnist | nist_sd19
-  # split: digits    # (emnist) digits | letters | byclass  -> determina num_classes
+  name: mnist          # mnist | emnist | nist_sd19
+  val_fraction: 0.2    # % del train que se aparta como VALIDACIÓN (estratificado)
+  split_seed: 0        # semilla FIJA del split train/val (independiente de `seed`).
+                       # NO cambiar entre baterías: garantiza la misma partición siempre.
+  # split: digits      # (emnist) digits | letters | byclass  -> determina num_classes
 
 # transform: null    # sin recorte = estrategia "imagen completa"
 

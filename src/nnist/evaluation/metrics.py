@@ -17,7 +17,8 @@ class RunResult:
     num_classes: int
     params_total: int
     params_trainable: int
-    accuracy: float = 0.0
+    accuracy: float = 0.0           # TEST: número honesto final (solo se toca al final)
+    val_accuracy: float = 0.0       # VAL: métrica de selección/comparación entre corridas
     # coste
     train_seconds: float = 0.0
     infer_ms_per_sample: float = 0.0

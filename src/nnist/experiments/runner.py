@@ -37,6 +37,8 @@ def run(config, output_root: str = "experiments") -> RunResult:
 
     # 1. datos + estrategia (imagen completa o subset)
     transform, strategy = _build_transform(config.transform)
+    # El split train/val NO depende de config.seed (init de pesos): usa su propia split_seed FIJA,
+    # congelada a disco, para que la partición sea idéntica en todas las corridas y baterías.
     ds_kwargs = {k: v for k, v in config.dataset.items() if k != "name"}
     bundle = load_dataset(config.dataset["name"], transform=transform, **ds_kwargs)
     logger.info("Dataset %s | clases=%d | input_shape=%s | estrategia=%s",
@@ -49,17 +51,19 @@ def run(config, output_root: str = "experiments") -> RunResult:
     params = model.count_params()
     logger.info("Modelo %s | params=%s", config.model["name"], params)
 
-    # 3. entrenamiento
+    # 3. entrenamiento (pesos con TRAIN, monitorización/selección con VAL)
     train_cfg = TrainConfig(**config.train)
     train_loader = DataLoader(bundle.train, batch_size=train_cfg.batch_size, shuffle=True)
+    val_loader = DataLoader(bundle.val, batch_size=train_cfg.batch_size, shuffle=False)
     test_loader = DataLoader(bundle.test, batch_size=train_cfg.batch_size, shuffle=False)
     trainer = Trainer(model, train_cfg)
     t0 = time.perf_counter()
-    history = trainer.fit(train_loader, test_loader)
+    history = trainer.fit(train_loader, val_loader)
     train_seconds = time.perf_counter() - t0
+    val_acc = history["val_accuracy"][-1] if history["val_accuracy"] else 0.0
 
-    # 4. evaluación multi-métrica
-    acc, y_true, y_pred, infer_ms = trainer.evaluate(test_loader)
+    # 4. evaluación FINAL sobre TEST (intocado durante el entrenamiento y la selección)
+    test_acc, y_true, y_pred, infer_ms = trainer.evaluate(test_loader)
     try:
         report = classification_report(y_true, y_pred)
     except Exception as e:  # sklearn ausente u otro problema no debe tumbar la corrida
@@ -75,7 +79,8 @@ def run(config, output_root: str = "experiments") -> RunResult:
         num_classes=bundle.num_classes,
         params_total=params["params_total"],
         params_trainable=params["params_trainable"],
-        accuracy=acc,
+        accuracy=test_acc,          # número honesto final (TEST)
+        val_accuracy=val_acc,       # métrica de selección/comparación del sweep (VAL)
         train_seconds=train_seconds,
         infer_ms_per_sample=infer_ms,
         extra={"classification_report": report},
@@ -91,5 +96,5 @@ def run(config, output_root: str = "experiments") -> RunResult:
     with open(out_dir / "history.json", "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)   # curva de aprendizaje por época (para graficar)
     torch.save(model.state_dict(), out_dir / "model.pt")
-    logger.info("Corrida guardada en %s | accuracy=%.4f", out_dir, acc)
+    logger.info("Corrida guardada en %s | val=%.4f | test=%.4f", out_dir, val_acc, test_acc)
     return result

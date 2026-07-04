@@ -38,6 +38,27 @@ elegir según el criterio que importe en cada momento (p. ej. "máxima accuracy"
 | Framework | **PyTorch** |
 | Alcance de clases | Empezar con **dígitos 0–9 (10 clases)**, pero el diseño **no** debe hardcodear el nº de clases; debe generalizar a letras (EMNIST / NIST SD19, 36 o 62 clases). |
 | Fuente de datos inicial | **MNIST / EMNIST** (descarga automática vía `torchvision`), detrás de una **interfaz de dataset abstracta** que luego admita **NIST SD19** crudo. |
+| Partición de datos | **train / val / test**. Val = **20%** del train, **estratificado** por clase y reproducible por `seed`. |
+
+### 3.1 Protocolo de conjuntos (evitar fuga de datos)
+
+Tres conjuntos disjuntos, con roles estrictos:
+
+- **TEST**: el split de test de fábrica (10.000 en MNIST). **Intocable** durante entrenamiento y
+  selección. Solo se usa para la evaluación **final** (`RunResult.accuracy`). Nunca se selecciona sobre él.
+- **VAL**: 20% recortado del train, estratificado y ligado a `seed`. Se usa para monitorizar el
+  aprendizaje y para **comparar/seleccionar** configuraciones. Los sweeps se ordenan por `val_accuracy`.
+- **TRAIN**: el resto del train. Único conjunto con el que se ajustan los pesos.
+
+Regla: **elegir hiperparámetros o comparar corridas mirando el test = fuga por selección**. Se decide
+por VAL; el TEST solo produce el número que se reporta.
+
+**Split congelado (sin bias aleatorios entre baterías):** la partición train/val se calcula una vez con
+`data.frozen_stratified_split` y se **persiste** en `data/splits/*.json` (versionado en git). Todas las
+corridas cargan esos índices exactos; si el dataset cambia, la huella no coincide y salta un error en vez
+de usar un split incorrecto. La `split_seed` que genera la partición es **independiente** del `seed` de
+entrenamiento (init de pesos/shuffle): así puedes variar `seed` para estudiar varianza **sin** mover los
+datos. Regla dura: **no cambiar `split_seed` ni `val_fraction` entre baterías** salvo intención explícita.
 
 ## 4. Entorno
 

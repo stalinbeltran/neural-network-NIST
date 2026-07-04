@@ -10,14 +10,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from nnist.viz import load_runs, plot_learning_curves, plot_pareto
+from nnist.viz import load_runs, plot_learning_curves, plot_ofat_curves, plot_pareto
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--experiments", default="experiments")
     ap.add_argument("--pattern", default=None, help="subcadena del run_id (p. ej. el nombre del sweep)")
-    ap.add_argument("--kind", default="all", choices=["all", "curves", "pareto"])
+    ap.add_argument("--kind", default="all", choices=["all", "curves", "pareto", "ofat"])
     ap.add_argument("--metric", default="val_accuracy", help="serie de history para las curvas")
     ap.add_argument("--outdir", default="experiments/_plots")
     args = ap.parse_args()
@@ -35,6 +35,9 @@ def main() -> None:
         print(f"Guardado: {p}")
     if args.kind in ("all", "pareto"):
         p = plot_pareto(runs, out=str(outdir / f"pareto_{tag}.png"))
+        print(f"Guardado: {p}")
+    if args.kind in ("all", "ofat"):
+        p = plot_ofat_curves(runs, metric=args.metric, out=str(outdir / f"ofat_{tag}.png"))
         print(f"Guardado: {p}")
 
 

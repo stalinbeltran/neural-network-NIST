@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 @dataclass
@@ -28,6 +29,11 @@ class Run:
         # el nombre del sweep va como "<sweep>__eje=val_eje=val"; nos quedamos con la parte de ejes
         rid = self.run_id.rsplit("_", 2)[0]        # quita el timestamp _YYYYMMDD_HHMMSS
         return rid.split("__", 1)[-1] if "__" in rid else rid
+
+    @property
+    def group(self) -> str:
+        """Configuración OFAT sin la semilla (varias corridas comparten group)."""
+        return self.label.split("__seed", 1)[0]
 
 
 def load_runs(experiments_root: str = "experiments", pattern: str | None = None) -> list[Run]:
@@ -81,6 +87,36 @@ def plot_pareto(runs: list[Run], x: str = "params_total", y: str = "accuracy",
     ax.set_ylabel(y)
     ax.set_title(f"{y} vs {x}")
     ax.grid(True, alpha=0.3)
+    return _finish(fig, out)
+
+
+def plot_ofat_curves(runs: list[Run], metric: str = "val_accuracy", out: str | None = None):
+    """Curvas de aprendizaje agrupadas por configuración OFAT: media de las semillas ± desviación.
+
+    Una línea (con banda) por `group`, promediando las corridas que solo difieren en la semilla.
+    Muestra el efecto de cada hiperparámetro con su variabilidad entre inicializaciones.
+    """
+    groups: dict[str, list[list[float]]] = {}
+    for run in runs:
+        series = run.history.get(metric)
+        if series:
+            groups.setdefault(run.group, []).append(series)
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    for group, seed_series in sorted(groups.items()):
+        n = min(len(s) for s in seed_series)          # recorta a la longitud común de época
+        arr = np.array([s[:n] for s in seed_series])  # (n_seeds, n_epochs)
+        mean, std = arr.mean(axis=0), arr.std(axis=0)
+        epochs = range(1, n + 1)
+        line, = ax.plot(epochs, mean, marker="o", markersize=3,
+                        label=f"{group} (n={len(seed_series)})")
+        if arr.shape[0] > 1:
+            ax.fill_between(epochs, mean - std, mean + std, color=line.get_color(), alpha=0.15)
+    ax.set_xlabel("época")
+    ax.set_ylabel(f"{metric} (media ± std entre semillas)")
+    ax.set_title("OFAT: efecto de cada hiperparámetro en el aprendizaje")
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=7, loc="best")
     return _finish(fig, out)
 
 

@@ -220,6 +220,7 @@ __marimo__/
 # --- neural-network-NIST (project-specific) ---
 data/raw/
 data/processed/
+# data/splits/ SÍ se versiona a propósito: congela la partición train/val fija entre baterías.
 experiments/*
 !experiments/.gitkeep
 *.pt
