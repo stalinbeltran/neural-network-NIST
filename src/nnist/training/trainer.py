@@ -2,11 +2,17 @@
 
 Recibe modelo + dataloaders + hiperparámetros; NO conoce qué arquitectura ni qué subset
 se usa (eso lo decide la config). Ver CLAUDE.md §5.4.
+
+Soporta CHECKPOINT/RESUME: un checkpoint guarda pesos + estado del optimizador (Adam guarda
+momentos) + época completada + historial, de modo que un entrenamiento caro puede reanudarse
+sin perder lo ya avanzado. La cadencia (cada N épocas) la fija el callback `ModelCheckpoint`.
+Nota: con lr constante (sin scheduler) reanudar es casi equivalente a entrenar seguido; no se
+restaura el estado del RNG, así que el orden de barajado tras reanudar puede diferir.
 """
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import torch
 import torch.nn as nn
@@ -37,35 +43,85 @@ class Trainer:
         self.cfg = train_cfg
         self.callbacks = callbacks or []
         self.device = torch.device(train_cfg.device)
+        # estado de entrenamiento (mutado en fit; usado por checkpoint/resume)
+        self.optimizer = None
+        self.history = {"train_loss": [], "val_accuracy": []}
+        self.start_epoch = 0          # nº de épocas ya completadas (>0 si se reanuda)
+        self._epochs_done = 0
+        self._pending_opt_state = None
+
+    # ---------------------------------------------------------------- checkpoint / resume
+
+    def state_dict(self) -> dict:
+        """Todo lo necesario para reanudar: pesos, estado del optimizador, época e historial."""
+        return {
+            "epochs_done": self._epochs_done,
+            "model_state": self.model.state_dict(),
+            "optimizer_state": self.optimizer.state_dict() if self.optimizer else None,
+            "history": self.history,
+            "train_cfg": asdict(self.cfg),
+            "meta": {"input_shape": tuple(self.model.input_shape),
+                     "num_classes": self.model.num_classes},
+        }
+
+    def save_checkpoint(self, path) -> None:
+        from pathlib import Path
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), path)
+
+    def resume_from(self, path) -> dict:
+        """Carga un checkpoint: restaura pesos + historial + época, y deja pendiente el estado
+        del optimizador para aplicarlo al crear el optimizador en `fit`."""
+        ckpt = torch.load(path, map_location=self.device)
+        meta = ckpt.get("meta", {})
+        if meta.get("input_shape") and tuple(meta["input_shape"]) != tuple(self.model.input_shape):
+            raise ValueError(
+                f"Checkpoint incompatible: input_shape {meta['input_shape']} != {self.model.input_shape}")
+        if meta.get("num_classes") and meta["num_classes"] != self.model.num_classes:
+            raise ValueError(
+                f"Checkpoint incompatible: num_classes {meta['num_classes']} != {self.model.num_classes}")
+        self.model.load_state_dict(ckpt["model_state"])
+        self.history = ckpt.get("history", {"train_loss": [], "val_accuracy": []})
+        self.start_epoch = ckpt.get("epochs_done", 0)
+        self._epochs_done = self.start_epoch
+        self._pending_opt_state = ckpt.get("optimizer_state")
+        return ckpt
+
+    # ---------------------------------------------------------------- entrenamiento
 
     def fit(self, train_loader, val_loader) -> dict:
-        """Entrena `epochs` épocas y devuelve el historial de métricas por época."""
+        """Entrena hasta `cfg.epochs` (continúa desde `start_epoch` si se reanudó)."""
         self.model.to(self.device)
         criterion = nn.CrossEntropyLoss()
-        optimizer = _make_optimizer(
+        self.optimizer = _make_optimizer(
             self.cfg.optimizer, self.model.parameters(), self.cfg.lr, self.cfg.weight_decay
         )
-        history = {"train_loss": [], "val_accuracy": []}
-        for epoch in range(self.cfg.epochs):
+        if self._pending_opt_state is not None:      # restaurar momentos de Adam al reanudar
+            self.optimizer.load_state_dict(self._pending_opt_state)
+            self._pending_opt_state = None
+
+        for epoch in range(self.start_epoch, self.cfg.epochs):
             self.model.train()
             running = 0.0
             n = 0
             for x, y in train_loader:
                 x, y = x.to(self.device), y.to(self.device)
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 loss = criterion(self.model(x), y)
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
                 running += loss.item() * x.size(0)
                 n += x.size(0)
             train_loss = running / max(n, 1)
             val_acc, _, _, _ = self.evaluate(val_loader)
-            history["train_loss"].append(train_loss)
-            history["val_accuracy"].append(val_acc)
+            self.history["train_loss"].append(train_loss)
+            self.history["val_accuracy"].append(val_acc)
+            self._epochs_done = epoch + 1
             metrics = {"epoch": epoch, "train_loss": train_loss, "val_accuracy": val_acc}
             for cb in self.callbacks:
                 cb.on_epoch_end(self, epoch, metrics)
-        return history
+        return self.history
 
     @torch.no_grad()
     def evaluate(self, loader):

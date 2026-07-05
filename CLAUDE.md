@@ -105,6 +105,14 @@ datos. Regla dura: **no cambiar `split_seed` ni `val_fraction` entre baterías**
 6. **El conteo de parámetros es un ciudadano de primera clase.** `BaseModel` expone `count_params()`;
    se registra siempre en las métricas.
 7. **No metas datasets, checkpoints ni logs en git.** Ver `.gitignore` (`data/raw`, `experiments/`, etc.).
+8. **Checkpoint / resume (entrenamientos caros reanudables).** El `Trainer` guarda un checkpoint
+   reanudable (pesos + estado del optimizador Adam + época completada + historial) mediante el callback
+   `ModelCheckpoint`, con **cadencia configurable**: `train.checkpoint_every: N` en la config guarda
+   `experiments/<run_id>/checkpoint.pt` cada N épocas y al terminar (sobrescribe el último; en el peor
+   caso se pierden N-1 épocas). Reanudar: `python scripts/train.py --config <cfg> --resume experiments/<run_dir>`
+   (subiendo `train.epochs` para entrenar más); continúa en la misma carpeta desde la época guardada.
+   Es opt-in: sin `checkpoint_every` el comportamiento no cambia. Aviso: **no** se persiste el estado del
+   RNG, así que con lr constante reanudar es *casi* equivalente a entrenar seguido, no idéntico bit a bit.
 
 ## 6. Estructura de archivos
 

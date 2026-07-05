@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from ..data import build_transform, load_dataset
 from ..evaluation import RunResult, classification_report
 from ..models import build_model
-from ..training import TrainConfig, Trainer
+from ..training import ModelCheckpoint, TrainConfig, Trainer
 from ..utils import get_logger, set_seed
 
 logger = get_logger("nnist.runner")
@@ -32,7 +32,13 @@ def _build_transform(cfg_transform: dict | None):
     return build_transform(name, **params), f"subset:{name}"
 
 
-def run(config, output_root: str = "experiments") -> RunResult:
+def run(config, output_root: str = "experiments", resume_from: str | None = None) -> RunResult:
+    """Ejecuta (o REANUDA) una corrida.
+
+    `resume_from`: carpeta de una corrida previa con `checkpoint.pt`. Se continúa el entrenamiento
+    en esa misma carpeta hasta `config.train.epochs` (que debe ser >= la época del checkpoint).
+    El checkpoint se guarda cada `config.train.checkpoint_every` épocas (opt-in; por defecto 5 al reanudar).
+    """
     set_seed(config.seed)
 
     # 1. datos + estrategia (imagen completa o subset)
@@ -52,11 +58,33 @@ def run(config, output_root: str = "experiments") -> RunResult:
     logger.info("Modelo %s | params=%s", config.model["name"], params)
 
     # 3. entrenamiento (pesos con TRAIN, monitorización/selección con VAL)
-    train_cfg = TrainConfig(**config.train)
+    train_dict = dict(config.train)
+    checkpoint_every = train_dict.pop("checkpoint_every", None)   # opt-in; no es campo de TrainConfig
+    train_cfg = TrainConfig(**train_dict)
     train_loader = DataLoader(bundle.train, batch_size=train_cfg.batch_size, shuffle=True)
     val_loader = DataLoader(bundle.val, batch_size=train_cfg.batch_size, shuffle=False)
     test_loader = DataLoader(bundle.test, batch_size=train_cfg.batch_size, shuffle=False)
-    trainer = Trainer(model, train_cfg)
+
+    # carpeta de la corrida: al reanudar reutilizamos la existente; si no, una nueva con timestamp
+    if resume_from:
+        out_dir = Path(resume_from)
+        run_id = out_dir.name
+        if checkpoint_every is None:
+            checkpoint_every = 5      # al reanudar, seguir guardando por defecto
+    else:
+        run_id = f"{config.name}_{datetime.now():%Y%m%d_%H%M%S}"
+        out_dir = Path(output_root) / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    callbacks = []
+    if checkpoint_every:
+        callbacks.append(ModelCheckpoint(out_dir / "checkpoint.pt", every=checkpoint_every))
+    trainer = Trainer(model, train_cfg, callbacks=callbacks)
+
+    if resume_from:
+        ckpt = trainer.resume_from(out_dir / "checkpoint.pt")
+        logger.info("Reanudando %s desde época %d hasta %d", run_id, ckpt["epochs_done"], train_cfg.epochs)
+
     t0 = time.perf_counter()
     history = trainer.fit(train_loader, val_loader)
     train_seconds = time.perf_counter() - t0
@@ -70,7 +98,6 @@ def run(config, output_root: str = "experiments") -> RunResult:
         logger.warning("classification_report no disponible: %s", e)
         report = {}
 
-    run_id = f"{config.name}_{datetime.now():%Y%m%d_%H%M%S}"
     result = RunResult(
         run_id=run_id,
         model_name=config.model["name"],
@@ -86,9 +113,7 @@ def run(config, output_root: str = "experiments") -> RunResult:
         extra={"classification_report": report},
     )
 
-    # 5. persistir corrida reproducible
-    out_dir = Path(output_root) / run_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # 5. persistir corrida reproducible (out_dir ya creada antes del entrenamiento)
     with open(out_dir / "config.yaml", "w", encoding="utf-8") as f:
         yaml.safe_dump(config.to_dict(), f, allow_unicode=True, sort_keys=False)
     with open(out_dir / "metrics.json", "w", encoding="utf-8") as f:
