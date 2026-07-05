@@ -11,12 +11,30 @@ en este repositorio. Léelo antes de implementar o modificar cualquier cosa.
 Construir y comparar distintas **estrategias de red neuronal** para clasificar imágenes de
 caracteres del set NIST, con dos ejes de experimentación:
 
-1. **Entrada completa**: la red recibe *todos* los píxeles de la matriz de la imagen del dígito.
-2. **Entrada por subsets**: la red recibe solo un **área más pequeña** de la matriz (un recorte /
-   ventana / región de la imagen). Se quiere estudiar cuánto rendimiento se conserva viendo menos.
+1. **Entrada completa (limpia)**: la red recibe *todos* los píxeles de la matriz del dígito.
+2. **Robustez al ruido visual**: se degradan los dígitos con distintos **tipos de ruido** y a
+   distintos **niveles de intensidad**, y se estudia cuánto rendimiento se conserva. Cada
+   combinación (tipo × nivel) es un **subset de datos** derivado de MNIST.
 
 Para **cada** tipo/estructura/estrategia de red debe existir un sistema que permita **entrenarla con
 distintos conjuntos de parámetros** (barridos de hiperparámetros) y **optimizar su rendimiento**.
+
+> **Descartado (2026-07-05):** el eje original de *entrada por subsets* (recortar una ventana más
+> pequeña de la imagen) queda **descartado** por decisión del usuario: se comprobó que esa idea la
+> **reproduce exactamente una CNN** (los filtros convolucionales ya operan sobre regiones locales),
+> así que no aporta un eje de estudio nuevo. El transform `crop_window` se conserva en el código por
+> compatibilidad, pero **no se usa en baterías nuevas**.
+
+**Plan de baterías con ruido (por hacer):**
+1. **Sweep de test (robustez):** tomar modelos **ya entrenados con datos limpios** y evaluarlos sobre
+   cada subset ruidoso (todos los tipos × niveles) para medir la caída de accuracy vs. nivel de ruido.
+2. **Sweep de entrenamiento:** **entrenar** modelos con los dígitos ruidosos (por tipo/nivel) y
+   comparar su rendimiento y robustez frente a los entrenados en limpio.
+
+Los subsets ruidosos (11 tipos × 5 niveles) se definen en `configs/noise/levels.yaml` y se
+generan **on-demand** (perezosamente): cada subset se crea la primera vez que se pide con
+`nnist.data.noisy_dataset(tipo, nivel, split)` y se cachea en `data/processed/noisy/<tipo>/<nivel>/`
+(gitignored). No se materializan por adelantado; `scripts/generate_noisy.py` solo pre-calienta por lotes.
 
 ## 2. Definición de "rendimiento" (multi-objetivo)
 
@@ -75,9 +93,11 @@ datos. Regla dura: **no cambiar `split_seed` ni `val_fraction` entre baterías**
 2. **Registries por nombre.** Modelos, datasets y transformaciones se registran por string
    (`@register("mlp")`) para poder seleccionarlos desde el YAML. Añadir una arquitectura nueva =
    un archivo nuevo en `models/` + su registro, **sin tocar** el runner ni el sweep.
-3. **La estrategia "subset" es una transformación de datos, no un modelo aparte.** El recorte/ventana
-   de la matriz vive en `data/transforms.py`. El modelo solo debe adaptarse a la **forma de entrada**
-   resultante (que se deduce de la config, no se hardcodea).
+3. **Las perturbaciones de datos son transformaciones, no modelos aparte.** El **ruido visual**
+   (y el histórico recorte/ventana, ya descartado — ver §1) viven en `data/transforms.py`,
+   registrados por nombre y parametrizados desde la config. El modelo solo debe adaptarse a la
+   **forma de entrada** resultante (que se deduce de la config, no se hardcodea). Los subsets ruidosos
+   se definen en `configs/noise/levels.yaml` y se materializan en `data/processed/noisy/<tipo>/<nivel>/`.
 4. **Separar los tres ejes**: (a) *qué ve la red* (transform/subset), (b) *qué estructura tiene la red*
    (model), (c) *cómo se entrena* (hiperparámetros/trainer). Un barrido puede variar cualquiera de los tres.
 5. **Reproducibilidad**: fijar semillas, guardar la config exacta + métricas + checkpoint de cada corrida
@@ -101,12 +121,15 @@ neural-network-NIST/
 │   │   ├── mlp_full.yaml      #   MLP sobre la imagen completa
 │   │   ├── cnn_full.yaml      #   CNN sobre la imagen completa
 │   │   └── mlp_subset.yaml    #   MLP sobre un subset/ventana de la imagen
-│   └── sweeps/               # barridos de hiperparámetros / param-sets
-│       └── mlp_full_grid.yaml
+│   ├── sweeps/               # barridos de hiperparámetros / param-sets
+│   │   └── mlp_full_grid.yaml
+│   └── noise/                # definición de subsets ruidosos (11 tipos × 5 niveles)
+│       └── levels.yaml
 │
 ├── data/
 │   ├── raw/                  # datasets descargados (gitignored)
 │   └── processed/            # datos preprocesados (gitignored)
+│       └── noisy/            # subsets ruidosos <tipo>/nivel_<1..5>/ (def. en configs/noise/levels.yaml)
 │
 ├── src/nnist/                # PAQUETE — toda la lógica reutilizable
 │   ├── data/

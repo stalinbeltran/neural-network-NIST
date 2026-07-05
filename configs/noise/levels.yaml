@@ -1,0 +1,59 @@
+# Definición de los SUBSETS RUIDOSOS derivados de MNIST.
+#
+# Cada TIPO de ruido tiene 5 NIVELES de intensidad (nivel_1 = leve ... nivel_5 = severo).
+# Cada combinación (tipo × nivel) = un subset de datos independiente que se materializa en
+#   data/processed/noisy/<tipo>/<nivel>/            (gitignored: son imágenes generadas)
+# Este archivo (versionado) es la ÚNICA fuente de verdad de qué parámetro usa cada nivel:
+# la estructura de carpetas es regenerable a partir de aquí.
+#
+# `param` nombra el hiperparámetro del transform; `levels` lista el valor por nivel, ordenado
+# de menor a mayor degradación visual. Para poisson/rayas/cuantización "más ruido" = valor MENOR
+# (menos fotones / menor espaciado / menos niveles de gris), pero nivel_1..5 siempre va leve→severo.
+name: noise_levels
+base_dataset: mnist
+seed: 0            # semilla del ruido -> reproducibilidad exacta de las imágenes generadas
+
+types:
+  gaussiano:              # ruido aditivo gaussiano por todo el lienzo
+    param: sigma
+    levels: { nivel_1: 0.10, nivel_2: 0.25, nivel_3: 0.50, nivel_4: 0.75, nivel_5: 1.00 }
+
+  sal_pimienta:           # ruido impulsivo: fracción p de píxeles a blanco/negro
+    param: p
+    levels: { nivel_1: 0.05, nivel_2: 0.10, nivel_3: 0.20, nivel_4: 0.35, nivel_5: 0.50 }
+
+  speckle:                # ruido multiplicativo: erosiona el trazo, no el fondo
+    param: sigma
+    levels: { nivel_1: 0.25, nivel_2: 0.50, nivel_3: 1.00, nivel_4: 1.50, nivel_5: 2.00 }
+
+  poisson:                # shot noise: `scale` = nº de fotones; MENOR = más ruidoso
+    param: scale
+    levels: { nivel_1: 60, nivel_2: 30, nivel_3: 15, nivel_4: 8, nivel_5: 4 }
+
+  uniforme:               # ruido aditivo uniforme en [-amplitud, +amplitud]
+    param: amplitud
+    levels: { nivel_1: 0.10, nivel_2: 0.20, nivel_3: 0.35, nivel_4: 0.50, nivel_5: 0.70 }
+
+  desenfoque_gaussiano:   # pérdida de foco (blur), sigma del kernel
+    param: sigma_blur
+    levels: { nivel_1: 0.6, nivel_2: 1.0, nivel_3: 1.5, nivel_4: 2.0, nivel_5: 3.0 }
+
+  oclusion:               # tapa un bloque cuadrado aleatorio; `lado` en píxeles
+    param: lado
+    levels: { nivel_1: 6, nivel_2: 9, nivel_3: 12, nivel_4: 15, nivel_5: 18 }
+
+  iluminacion_desigual:   # gradiente de fondo (foto mal iluminada); `amplitud` del gradiente
+    param: amplitud
+    levels: { nivel_1: 0.2, nivel_2: 0.4, nivel_3: 0.6, nivel_4: 0.8, nivel_5: 1.0 }
+
+  distorsion_elastica:    # deforma la forma del dígito; `alpha` (sigma fijo ~4)
+    param: alpha
+    levels: { nivel_1: 20, nivel_2: 34, nivel_3: 50, nivel_4: 70, nivel_5: 100 }
+
+  rayas_horizontales:     # patrón periódico de líneas; `espaciado` en px, MENOR = más rayas
+    param: espaciado
+    levels: { nivel_1: 8, nivel_2: 6, nivel_3: 4, nivel_4: 3, nivel_5: 2 }
+
+  cuantizacion:           # reduce profundidad de bits; `niveles` de gris, MENOS = más degradado
+    param: niveles
+    levels: { nivel_1: 8, nivel_2: 5, nivel_3: 4, nivel_4: 3, nivel_5: 2 }
