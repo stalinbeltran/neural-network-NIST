@@ -59,6 +59,10 @@ def _make_scheduler(name: str, optimizer, total_epochs: int, params: dict | None
     raise ValueError(f"Scheduler desconocido: {name!r}")
 
 
+def _is_plateau(scheduler) -> bool:
+    return scheduler.__class__.__name__ == "ReduceLROnPlateau"
+
+
 def _load_state_by_position(model, old_state: dict) -> None:
     """Carga `old_state` en `model` emparejando tensores por ORDEN (no por nombre), validando formas.
     Sirve cuando la arquitectura cambió sin añadir pesos (p.ej. activar dropout renombra
@@ -90,6 +94,7 @@ class Trainer:
         self.start_epoch = 0          # nº de épocas ya completadas (>0 si se reanuda)
         self._epochs_done = 0
         self._pending_opt_state = None
+        self._started = False         # optimizador/scheduler se crean 1 vez (fit incremental por tramos)
 
     # ---------------------------------------------------------------- checkpoint / resume
 
@@ -139,32 +144,39 @@ class Trainer:
     # ---------------------------------------------------------------- entrenamiento
 
     def fit(self, train_loader, val_loader) -> dict:
-        """Entrena hasta `cfg.epochs` (continúa desde `start_epoch` si se reanudó)."""
+        """Entrena hasta `cfg.epochs` (continúa desde `start_epoch` si se reanudó).
+
+        Es INCREMENTAL: se puede llamar varias veces subiendo `cfg.epochs` entre llamadas
+        (entrenamiento por tramos / round-robin). El optimizador y el scheduler se crean una
+        sola vez y se reutilizan, conservando los momentos de Adam y el estado del scheduler."""
         self.model.to(self.device)
         criterion = nn.CrossEntropyLoss()
-        self.optimizer = _make_optimizer(
-            self.cfg.optimizer, self.model.parameters(), self.cfg.lr, self.cfg.weight_decay
-        )
-        if self._pending_opt_state is not None:      # restaurar momentos de Adam al reanudar
-            self.optimizer.load_state_dict(self._pending_opt_state)
-            self._pending_opt_state = None
-            # la config es la fuente de verdad: reaplica lr/weight_decay actuales (load_state_dict
-            # del optimizador restaura los del checkpoint, así que un cambio de wd se ignoraría).
-            for g in self.optimizer.param_groups:
-                g["lr"] = self.cfg.lr
-                g["weight_decay"] = self.cfg.weight_decay
 
-        # scheduler opcional. Cosine/step son función determinista de la época: al reanudar se
-        # "adelanta" start_epoch pasos para situar el lr donde toca. Plateau (reactivo) arranca de cero.
-        self.scheduler = _make_scheduler(self.cfg.scheduler, self.optimizer, self.cfg.epochs,
-                                         self.cfg.scheduler_params)
-        is_plateau = self.scheduler.__class__.__name__ == "ReduceLROnPlateau"
-        if self.scheduler is not None and not is_plateau and self.start_epoch > 0:
-            import warnings
-            with warnings.catch_warnings():   # el "step antes de optimizer.step" aquí es intencional
-                warnings.simplefilter("ignore")
-                for _ in range(self.start_epoch):
-                    self.scheduler.step()
+        if not self._started:
+            self.optimizer = _make_optimizer(
+                self.cfg.optimizer, self.model.parameters(), self.cfg.lr, self.cfg.weight_decay
+            )
+            if self._pending_opt_state is not None:  # restaurar momentos de Adam al reanudar
+                self.optimizer.load_state_dict(self._pending_opt_state)
+                self._pending_opt_state = None
+                # la config es la fuente de verdad: reaplica lr/weight_decay actuales (load_state_dict
+                # del optimizador restaura los del checkpoint, así que un cambio de wd se ignoraría).
+                for g in self.optimizer.param_groups:
+                    g["lr"] = self.cfg.lr
+                    g["weight_decay"] = self.cfg.weight_decay
+
+            # scheduler opcional. Cosine/step son función determinista de la época: al reanudar
+            # desde disco se "adelanta" start_epoch pasos para situar el lr donde toca (entre tramos
+            # en memoria no hace falta: avanza solo con cada step). Plateau (reactivo) arranca de cero.
+            self.scheduler = _make_scheduler(self.cfg.scheduler, self.optimizer, self.cfg.epochs,
+                                             self.cfg.scheduler_params)
+            if self.scheduler is not None and not _is_plateau(self.scheduler) and self.start_epoch > 0:
+                import warnings
+                with warnings.catch_warnings():   # el "step antes de optimizer.step" aquí es intencional
+                    warnings.simplefilter("ignore")
+                    for _ in range(self.start_epoch):
+                        self.scheduler.step()
+            self._started = True
         self.history.setdefault("lr", [])            # back-compat con checkpoints sin esta clave
 
         for epoch in range(self.start_epoch, self.cfg.epochs):
@@ -189,7 +201,8 @@ class Trainer:
             for cb in self.callbacks:
                 cb.on_epoch_end(self, epoch, metrics)
             if self.scheduler is not None:           # avanzar el lr para la siguiente época
-                self.scheduler.step(val_acc) if is_plateau else self.scheduler.step()
+                self.scheduler.step(val_acc) if _is_plateau(self.scheduler) else self.scheduler.step()
+        self.start_epoch = self._epochs_done         # continuar desde aquí si se vuelve a llamar a fit
         return self.history
 
     @torch.no_grad()

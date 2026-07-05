@@ -45,12 +45,32 @@ def test_scheduler_resume_fastforwards_lr(tmp_path):
     cfg2 = TrainConfig(epochs=6, lr=0.01, scheduler="cosine", scheduler_params={"t_max": 6})
     t2 = Trainer(m2, cfg2)
     t2.resume_from(ckpt)
+    resume_at = t2.start_epoch          # 2 (fit lo avanzará a 6 al terminar)
     t2.fit(_loader(), _loader(seed=1))
     # el historial de lr es continuo (2 previas + 4 nuevas); la 1ª época NUEVA ya viene adelantada
     assert len(t2.history["lr"]) == 6
-    assert t2.history["lr"][t2.start_epoch] < 0.01
+    assert t2.history["lr"][resume_at] < 0.01
     assert all(a >= b for a, b in zip(t2.history["lr"], t2.history["lr"][1:]))  # decae
     assert t2._epochs_done == 6
+
+
+def test_incremental_fit_by_chunks():
+    """Llamar a fit por tramos (subiendo cfg.epochs) continúa sin reiniciar y reutiliza el optimizador."""
+    m = build_model("mlp", input_shape=(1, 8, 8), num_classes=3, hidden=[16])
+    cfg = TrainConfig(epochs=2, lr=0.01, scheduler="cosine", scheduler_params={"t_max": 6})
+    t = Trainer(m, cfg)
+    tr, val = _loader(), _loader(seed=1)
+
+    t.fit(tr, val)                      # tramo 1: épocas 0,1
+    assert t._epochs_done == 2
+    opt_id = id(t.optimizer)            # el optimizador debe conservarse (momentos de Adam)
+    t.cfg.epochs = 4
+    t.fit(tr, val)                      # tramo 2: épocas 2,3
+    assert t._epochs_done == 4
+    assert id(t.optimizer) == opt_id
+    assert len(t.history["val_accuracy"]) == 4          # continuó, no reinició
+    assert len(t.history["lr"]) == 4
+    assert all(a >= b for a, b in zip(t.history["lr"], t.history["lr"][1:]))  # cosine sigue decayendo
 
 
 def test_weight_decay_applied_on_resume(tmp_path):
