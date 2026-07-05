@@ -1,7 +1,11 @@
-# Estrategia: CNN sobre la IMAGEN COMPLETA.
+# Estrategia: CNN sobre la IMAGEN COMPLETA. Baseline: 1 bloque [16] + FC128, sin BatchNorm.
 name: cnn_full
 extends: ../base.yaml
 
 model:
   name: cnn
-  channels: [16, 32]
+  channels: [16]
+  kernel_size: 3
+  fc_hidden: 128
+  batchnorm: false
+  dropout: 0.0

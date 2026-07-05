@@ -1,0 +1,29 @@
+# BATERÍA OFAT para la CNN sobre imagen completa. MISMAS entradas/split/semillas/épocas que el
+# MLP -> comparación directa. Baseline: 1 bloque [16], kernel 3, FC128, sin BN, dropout 0.
+#   17 configs (1 baseline + 3 conv + 1 kernel + 2 fc + 1 bn + 2 lr + 4 batch + 3 dropout) x 5 = 85 corridas.
+name: ofat_cnn_full
+base: configs/models/cnn_full.yaml
+mode: ofat
+
+baseline:
+  train.epochs: 10        # comparable con el MLP truncando su curva de val a la época 10 (lr constante, sin scheduler)
+  train.lr: 0.003
+  train.batch_size: 128
+  model.channels: [16]
+  model.kernel_size: 3
+  model.fc_hidden: 128
+  model.batchnorm: false
+  model.dropout: 0.0
+
+axes:
+  # arquitectura CNN
+  model.channels: [[16, 32], [32, 64], [16, 32, 64]]
+  model.kernel_size: [5]
+  model.fc_hidden: [64, 256]
+  model.batchnorm: [true]
+  # entrenamiento (mismos que el MLP)
+  train.lr: [0.01, 0.001]
+  train.batch_size: [64, 96, 192, 256]
+  model.dropout: [0.1, 0.2, 0.3]
+
+seeds: [0, 1, 2, 3, 4]
