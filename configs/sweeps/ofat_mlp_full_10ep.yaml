@@ -1,0 +1,21 @@
+# Re-run de la batería OFAT del MLP acotada a 10 ÉPOCAS, para comparación 100% homóloga con la
+# batería CNN (mismo nº de épocas, mismas entradas/split/semillas/ejes). Idéntica a ofat_mlp_full
+# salvo epochs=10 y el nombre (para no pisar los resultados de 25 épocas).
+name: ofat_mlp_full_10ep
+base: configs/models/mlp_full.yaml
+mode: ofat
+
+baseline:
+  train.epochs: 10
+  train.lr: 0.003
+  train.batch_size: 128
+  model.hidden: [128]
+  model.dropout: 0.0
+
+axes:
+  train.lr: [0.01, 0.001]
+  model.hidden: [[64], [256, 128], [64, 64], [128, 128]]
+  train.batch_size: [64, 96, 192, 256]
+  model.dropout: [0.1, 0.2, 0.3]
+
+seeds: [0, 1, 2, 3, 4]
