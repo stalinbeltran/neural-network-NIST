@@ -160,7 +160,8 @@ neural-network-NIST/
 │   │   └── sweep.py          # expande y ejecuta un BARRIDO de configs
 │   └── utils/
 │       ├── seed.py
-│       └── logging.py
+│       ├── logging.py
+│       └── trainlog.py       # bitácora de entrenamientos -> trainings/TRAININGS.md (upsert por id)
 │
 ├── scripts/                  # ENTRADAS de línea de comandos (delgadas)
 │   ├── download_data.py
@@ -168,6 +169,7 @@ neural-network-NIST/
 │   └── sweep.py              #  python scripts/sweep.py --config configs/sweeps/mlp_full_grid.yaml
 │
 ├── experiments/              # SALIDAS: <run_id>/{config.yaml, metrics.json, model.pt, log} (gitignored)
+├── trainings/                # BITÁCORA versionada: TRAININGS.md, registro único de corridas (NO gitignored)
 │
 └── tests/
     ├── test_data.py
@@ -179,7 +181,17 @@ neural-network-NIST/
 - **`configs/`** = *qué* experimento correr (datos + declarativo).
 - **`src/nnist/`** = *cómo* funciona (lógica reutilizable, con tests).
 - **`scripts/`** = *lanzar* algo (CLI delgada, sin lógica de negocio).
-- **`experiments/`** = *qué salió* (resultados reproducibles).
+- **`experiments/`** = *qué salió* (resultados reproducibles, gitignored).
+- **`trainings/`** = *qué se está/ha entrenado* (bitácora única versionada, para revisar de un vistazo).
+
+### Bitácora de entrenamientos (`trainings/TRAININGS.md`)
+Registro **único y versionado** de todas las corridas (hechas y EN CURSO), una fila por `id`. Es la
+forma rápida de ver qué hay entrenándose. Se mantiene **automáticamente**: `nnist.utils.log_training`
+hace *upsert* de la fila (solo actualiza los campos que se pasan) y el callback `TrainingLogger`
+lo refresca cada época (`en_curso` → `hecho` con el test final). Ya está cableado en `runner.py`
+(toda corrida config-driven) y en los scripts de baterías. **Regla:** cualquier nuevo script de
+entrenamiento debe registrar su corrida vía `log_training`/`TrainingLogger`; no editar el `.md` a mano
+mientras haya corridas activas (se reescribe entero en cada actualización).
 
 ## 7. Flujo de trabajo típico
 

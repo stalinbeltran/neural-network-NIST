@@ -27,4 +27,24 @@ class ModelCheckpoint(Callback):
             trainer.save_checkpoint(self.path)
 
 
+class TrainingLogger(Callback):
+    """Actualiza la bitácora `trainings/TRAININGS.md` tras cada época (estado `en_curso`).
+
+    `entry_id` identifica la fila; `total_epochs` es el objetivo para mostrar `hechas/objetivo`.
+    Los campos fijos (modelo, datos, checkpoint) se pasan una vez y se conservan en los upserts."""
+
+    def __init__(self, entry_id: str, total_epochs: int, modelo=None, datos=None, checkpoint=None):
+        self.entry_id = entry_id
+        self.total = total_epochs
+        self.modelo = modelo
+        self.datos = datos
+        self.checkpoint = checkpoint
+
+    def on_epoch_end(self, trainer, epoch, metrics):
+        from ..utils import log_training
+        log_training(id=self.entry_id, estado="en_curso", modelo=self.modelo, datos=self.datos,
+                     checkpoint=self.checkpoint, épocas=f"{trainer._epochs_done}/{self.total}",
+                     val=metrics["val_accuracy"])
+
+
 # TODO: EarlyStopping (parar si val_accuracy no mejora en N épocas).

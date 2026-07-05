@@ -17,8 +17,8 @@ from torch.utils.data import DataLoader
 from ..data import build_transform, load_dataset
 from ..evaluation import RunResult, classification_report
 from ..models import build_model
-from ..training import ModelCheckpoint, TrainConfig, Trainer
-from ..utils import get_logger, set_seed
+from ..training import ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
+from ..utils import get_logger, log_training, set_seed
 
 logger = get_logger("nnist.runner")
 
@@ -76,7 +76,11 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
         out_dir = Path(output_root) / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    callbacks = []
+    # bitácora única de entrenamientos (trainings/TRAININGS.md): estado en_curso -> hecho
+    modelo_txt = f"{config.model['name']} {model_kwargs}" if model_kwargs else config.model["name"]
+    ckpt_txt = str(out_dir / "checkpoint.pt") if checkpoint_every else str(out_dir / "model.pt")
+    callbacks = [TrainingLogger(run_id, train_cfg.epochs, modelo=modelo_txt,
+                                datos=f"{config.dataset['name']} ({strategy})", checkpoint=ckpt_txt)]
     if checkpoint_every:
         callbacks.append(ModelCheckpoint(out_dir / "checkpoint.pt", every=checkpoint_every))
     trainer = Trainer(model, train_cfg, callbacks=callbacks)
@@ -85,6 +89,9 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
         ckpt = trainer.resume_from(out_dir / "checkpoint.pt")
         logger.info("Reanudando %s desde época %d hasta %d", run_id, ckpt["epochs_done"], train_cfg.epochs)
 
+    log_training(id=run_id, estado="en_curso", modelo=modelo_txt,
+                 datos=f"{config.dataset['name']} ({strategy})",
+                 épocas=f"{trainer.start_epoch}/{train_cfg.epochs}", checkpoint=ckpt_txt)
     t0 = time.perf_counter()
     history = trainer.fit(train_loader, val_loader)
     train_seconds = time.perf_counter() - t0
@@ -121,5 +128,7 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
     with open(out_dir / "history.json", "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)   # curva de aprendizaje por época (para graficar)
     torch.save(model.state_dict(), out_dir / "model.pt")
+    log_training(id=run_id, estado="hecho", épocas=f"{trainer._epochs_done}/{train_cfg.epochs}",
+                 val=val_acc, test=test_acc)
     logger.info("Corrida guardada en %s | val=%.4f | test=%.4f", out_dir, val_acc, test_acc)
     return result

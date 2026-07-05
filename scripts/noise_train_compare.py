@@ -21,8 +21,8 @@ from torch.utils.data import DataLoader
 
 from nnist.data import load_mnist, noisy_dataset
 from nnist.models import build_model
-from nnist.training import Callback, ModelCheckpoint, TrainConfig, Trainer
-from nnist.utils import set_seed
+from nnist.training import Callback, ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
+from nnist.utils import log_training, set_seed
 
 CKPT_DIR = Path("experiments") / "_noise_compare"
 
@@ -119,6 +119,20 @@ def main() -> None:
     t_clean.callbacks.append(live)
     t_noisy.callbacks.append(live)
 
+    # bitácora: registra ambas corridas como EN CURSO y actualiza por época
+    modelo_txt = f"CNN{channels} d{args.dropout}"
+    ruido_txt = f"{args.tipo} {args.nivel}"
+    t_clean.callbacks.append(TrainingLogger("noise_compare_limpio", args.epochs, modelo=modelo_txt,
+                                            datos="mnist_limpio", checkpoint=str(clean_ckpt)))
+    t_noisy.callbacks.append(TrainingLogger("noise_compare_ruidoso", args.epochs, modelo=modelo_txt,
+                                            datos=ruido_txt, checkpoint=str(noisy_ckpt)))
+    log_training(id="noise_compare_limpio", estado="en_curso", modelo=modelo_txt,
+                 datos="mnist_limpio", épocas=f"{t_clean.start_epoch}/{args.epochs}",
+                 checkpoint=str(clean_ckpt))
+    log_training(id="noise_compare_ruidoso", estado="en_curso", modelo=modelo_txt,
+                 datos=ruido_txt, épocas=f"{t_noisy.start_epoch}/{args.epochs}",
+                 checkpoint=str(noisy_ckpt))
+
     print(f"Modelo: CNN {channels} | params={m_clean.count_params()['params_total']:,} | "
           f"ruido train: {args.tipo} {args.nivel} | eval: LIMPIO", flush=True)
 
@@ -136,6 +150,12 @@ def main() -> None:
     tn = t_noisy.evaluate(test_ld)[0]
     print(f"\nTEST (limpio) -> entrenado_LIMPIO={tc:.4f}  entrenado_RUIDOSO={tn:.4f}  "
           f"Δ={(tc - tn) * 100:.2f} pp", flush=True)
+
+    # bitácora: marca ambas corridas como HECHAS con su test final
+    log_training(id="noise_compare_limpio", estado="hecho",
+                 épocas=f"{t_clean._epochs_done}/{args.epochs}", val=hc[-1] if hc else None, test=tc)
+    log_training(id="noise_compare_ruidoso", estado="hecho",
+                 épocas=f"{t_noisy._epochs_done}/{args.epochs}", val=hn[-1] if hn else None, test=tn)
 
     CKPT_DIR.mkdir(parents=True, exist_ok=True)
     (CKPT_DIR / "history.json").write_text(json.dumps(

@@ -22,8 +22,8 @@ from torch.utils.data import DataLoader
 
 from nnist.data import load_mnist
 from nnist.models import build_model
-from nnist.training import Callback, ModelCheckpoint, TrainConfig, Trainer
-from nnist.utils import set_seed
+from nnist.training import Callback, ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
+from nnist.utils import log_training, set_seed
 
 CKPT_DIR = Path("experiments") / "_kernel_sweep"
 
@@ -84,8 +84,14 @@ def main() -> None:
         model = build_model("cnn", input_shape=input_shape, num_classes=10, channels=channels,
                             kernel_size=k, dropout=args.dropout)
         ckpt = CKPT_DIR / f"ckpt_k{k}.pt"
+        entry_id = f"kernel_k{k}"
+        logger = TrainingLogger(entry_id, args.epochs, modelo=f"CNN{channels} k={k} d{args.dropout}",
+                                datos="mnist_limpio", checkpoint=str(ckpt))
         trainers[k] = Trainer(model, make_cfg(),
-                              callbacks=[ModelCheckpoint(ckpt, every=1), PrintEpoch(k)])
+                              callbacks=[ModelCheckpoint(ckpt, every=1), PrintEpoch(k), logger])
+        # registra la corrida como EN CURSO desde el arranque (aunque aún no haya épocas)
+        log_training(id=entry_id, estado="en_curso", modelo=f"CNN{channels} k={k} d{args.dropout}",
+                     datos="mnist_limpio", épocas=f"0/{args.epochs}", checkpoint=str(ckpt))
 
     live = LivePlot(trainers, args.kernels)
     for k in args.kernels:
@@ -127,9 +133,13 @@ def main() -> None:
     for k in args.kernels:
         acc = trainers[k].evaluate(test_ld)[0]
         params = trainers[k].model.count_params()["params_total"]
+        val_final = trainers[k].history["val_accuracy"][-1]
         results[str(k)] = {"test_clean": acc, "params": params,
                            "val": trainers[k].history["val_accuracy"]}
         print(f"TEST (limpio) k={k}: acc={acc:.4f} | params={params:,}", flush=True)
+        # marca la corrida como HECHA con el test final en la bitácora
+        log_training(id=f"kernel_k{k}", estado="hecho", épocas=f"{args.epochs}/{args.epochs}",
+                     val=val_final, test=acc)
 
     CKPT_DIR.mkdir(parents=True, exist_ok=True)
     (CKPT_DIR / "history.json").write_text(json.dumps(
