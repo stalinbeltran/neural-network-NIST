@@ -1,0 +1,21 @@
+# Optimización del LEARNING RATE en CNN. Solo se varía el lr; todo lo demás fijo y elegido para
+# MÁXIMA VELOCIDAD (cabe en ~1h): 1 bloque conv [16], batch 256, 7 épocas, sin BN ni dropout.
+# 7 lr (log-espaciados) x 3 semillas = 21 corridas. Cubre "demasiado bajo" (lento) -> "demasiado alto" (inestable).
+name: cnn_lr_opt
+base: configs/models/cnn_full.yaml
+mode: ofat
+
+baseline:
+  train.epochs: 7
+  train.lr: 0.003          # referencia central (aparece como grupo "baseline")
+  train.batch_size: 256
+  model.channels: [16]
+  model.kernel_size: 3
+  model.fc_hidden: 128
+  model.batchnorm: false
+  model.dropout: 0.0
+
+axes:
+  train.lr: [0.0001, 0.0003, 0.001, 0.01, 0.03, 0.1]
+
+seeds: [0, 1, 2]

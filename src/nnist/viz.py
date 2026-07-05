@@ -120,6 +120,100 @@ def plot_ofat_curves(runs: list[Run], metric: str = "val_accuracy", out: str | N
     return _finish(fig, out)
 
 
+def plot_comparison(datasets: dict[str, list[dict]], metric: str = "test_mean",
+                    std_key: str | None = None, out: str | None = None):
+    """Compara varias baterías (p. ej. MLP vs CNN) en accuracy vs nº de parámetros.
+
+    `datasets`: {etiqueta: filas del summary CSV}. Cada fila necesita `group`, `params_total`
+    y la columna `metric`. Params en escala log (abarcan de ~50k a ~800k).
+    """
+    fig, ax = plt.subplots(figsize=(9.5, 6))
+    for label, rows in datasets.items():
+        xs = [float(r["params_total"]) for r in rows]
+        ys = [float(r[metric]) for r in rows]
+        errs = [float(r.get(std_key, 0) or 0) for r in rows] if std_key else None
+        ax.errorbar(xs, ys, yerr=errs, fmt="o", capsize=3, alpha=0.85, label=label)
+        for r in rows:
+            ax.annotate(r["group"], (float(r["params_total"]), float(r[metric])),
+                        fontsize=6, xytext=(3, 3), textcoords="offset points")
+    ax.set_xscale("log")
+    ax.set_xlabel("nº de parámetros (escala log)")
+    ax.set_ylabel(metric)
+    ax.set_title(f"Comparación por configuración: {metric} vs parámetros")
+    ax.grid(True, alpha=0.3, which="both")
+    ax.legend()
+    return _finish(fig, out)
+
+
+def plot_axis_effects(datasets: dict[str, list[dict]], metric: str = "test_mean",
+                      out: str | None = None):
+    """Efecto de cada eje OFAT por modelo: Δ = variante − baseline (en puntos %).
+
+    Una sub-gráfica por eje; barras por variante, agrupadas por modelo. Positivo = mejora sobre
+    el baseline del modelo; negativo = empeora. Los ejes compartidos (lr/batch/dropout) muestran
+    ambos modelos; los propios de una arquitectura, solo ese modelo. Medir Δ respecto al baseline
+    de CADA modelo neutraliza su nivel de partida y compara la SENSIBILIDAD a cada eje.
+    """
+    per_model: dict[str, dict[str, dict[str, float]]] = {}
+    for model, rows in datasets.items():
+        base = next((r for r in rows if r["group"] == "baseline"), None)
+        if base is None:
+            continue
+        b = float(base[metric])
+        axes: dict[str, dict[str, float]] = {}
+        for r in rows:
+            axis, sep, val = r["group"].partition("=")
+            if not sep:            # baseline u otros sin '='
+                continue
+            axes.setdefault(axis, {})[val] = (float(r[metric]) - b) * 100.0
+        per_model[model] = axes
+
+    models = list(per_model.keys())
+    ordered: list[str] = []
+    for ax_name in ("lr", "batch_size", "dropout"):     # compartidos primero
+        if any(ax_name in per_model[m] for m in models):
+            ordered.append(ax_name)
+    for m in models:                                    # luego los propios de cada modelo
+        for ax_name in per_model[m]:
+            if ax_name not in ordered:
+                ordered.append(ax_name)
+
+    def sort_key(v: str):
+        try:
+            return (0, float(v))
+        except ValueError:
+            return (1, v)
+
+    ncols = 3
+    nrows = (len(ordered) + ncols - 1) // ncols
+    fig, axarr = plt.subplots(nrows, ncols, figsize=(4.6 * ncols, 3.2 * nrows), squeeze=False)
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    for i, ax_name in enumerate(ordered):
+        ax = axarr[i // ncols][i % ncols]
+        variants = sorted({v for m in models for v in per_model[m].get(ax_name, {})}, key=sort_key)
+        x = np.arange(len(variants))
+        width = 0.8 / max(len(models), 1)
+        for j, model in enumerate(models):
+            vals = [per_model[model].get(ax_name, {}).get(v, np.nan) for v in variants]
+            ax.bar(x + (j - (len(models) - 1) / 2) * width, vals, width,
+                   label=model, color=colors[j % len(colors)])
+        ax.axhline(0, color="k", linewidth=0.8)
+        ax.set_title(ax_name)
+        ax.set_xticks(x)
+        ax.set_xticklabels(variants, fontsize=7, rotation=30)
+        ax.set_ylabel("Δ vs baseline (pp)", fontsize=7)
+        ax.grid(True, axis="y", alpha=0.3)
+
+    for k in range(len(ordered), nrows * ncols):        # ocultar celdas sobrantes
+        axarr[k // ncols][k % ncols].axis("off")
+
+    handles, labels = axarr[0][0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper right", fontsize=9)
+    fig.suptitle(f"Efecto de cada eje por modelo (Δ {metric} vs baseline, en puntos %)")
+    return _finish(fig, out)
+
+
 def _finish(fig, out: str | None):
     fig.tight_layout()
     if out:
