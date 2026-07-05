@@ -36,6 +36,25 @@ class PrintEpoch(Callback):
         print(f"  [{self.tag:<8}] época {epoch + 1}: val_limpio={metrics['val_accuracy']:.4f}", flush=True)
 
 
+class LivePlot(Callback):
+    """Regenera reports/noise_train_compare.png tras CADA época, para ver el avance en vivo.
+
+    Lee las historias en vivo de ambos trainers (limpio y ruidoso), así que la gráfica se
+    actualiza durante ambas fases del entrenamiento. Como el entrenamiento es secuencial
+    (primero limpio, luego ruidoso), durante la fase limpia la curva ruidosa muestra lo ya
+    avanzado y viceversa; ambas longitudes pueden diferir y `plot_history` lo maneja.
+    """
+    def __init__(self, t_clean, t_noisy, tipo, nivel):
+        self.t_clean = t_clean
+        self.t_noisy = t_noisy
+        self.tipo = tipo
+        self.nivel = nivel
+
+    def on_epoch_end(self, trainer, epoch, metrics):
+        plot_history(self.t_clean.history["val_accuracy"],
+                     self.t_noisy.history["val_accuracy"], self.tipo, self.nivel)
+
+
 def _make_trainer(model, cfg, ckpt_path, every, tag) -> Trainer:
     return Trainer(model, cfg, callbacks=[ModelCheckpoint(ckpt_path, every=every), PrintEpoch(tag)])
 
@@ -50,6 +69,10 @@ def main() -> None:
     ap.add_argument("--nivel", default="nivel_3")
     ap.add_argument("--checkpoint-every", type=int, default=1)
     ap.add_argument("--resume", action="store_true", help="reanudar desde los checkpoints existentes")
+    ap.add_argument("--weight-decay", type=float, default=0.0, help="regularización L2 (Adam)")
+    ap.add_argument("--dropout", type=float, default=0.0, help="dropout en la cabeza densa de la CNN")
+    ap.add_argument("--scheduler", default="none", help="none | cosine | step | plateau")
+    ap.add_argument("--t-max", type=int, default=None, help="T_max de cosine (por defecto = --epochs)")
     args = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -69,18 +92,32 @@ def main() -> None:
     val_ld = DataLoader(clean.val, batch_size=args.batch)       # VAL limpio
     test_ld = DataLoader(clean.test, batch_size=args.batch)     # TEST limpio
 
-    cfg = TrainConfig(epochs=args.epochs, lr=args.lr, batch_size=args.batch)
-    set_seed(args.seed); m_clean = build_model("cnn", input_shape=input_shape, num_classes=10, channels=channels)
-    set_seed(args.seed); m_noisy = build_model("cnn", input_shape=input_shape, num_classes=10, channels=channels)
+    sched_params = {"t_max": args.t_max} if (args.scheduler == "cosine" and args.t_max) else {}
+    cfg = TrainConfig(epochs=args.epochs, lr=args.lr, batch_size=args.batch,
+                      weight_decay=args.weight_decay, scheduler=args.scheduler,
+                      scheduler_params=sched_params)
+    mk = lambda: build_model("cnn", input_shape=input_shape, num_classes=10,
+                             channels=channels, dropout=args.dropout)
+    set_seed(args.seed); m_clean = mk()
+    set_seed(args.seed); m_noisy = mk()
 
     t_clean = _make_trainer(m_clean, cfg, clean_ckpt, args.checkpoint_every, "LIMPIO")
     t_noisy = _make_trainer(m_noisy, cfg, noisy_ckpt, args.checkpoint_every, "RUIDOSO")
 
     if args.resume:
-        c = t_clean.resume_from(clean_ckpt)
-        n = t_noisy.resume_from(noisy_ckpt)
+        # con dropout>0 la arquitectura cambió (Dropout no añade pesos pero desplaza índices):
+        # cargar los pesos ya entrenados por posición (strict_weights=False).
+        strict = args.dropout == 0.0
+        c = t_clean.resume_from(clean_ckpt, strict_weights=strict)
+        n = t_noisy.resume_from(noisy_ckpt, strict_weights=strict)
         print(f"REANUDANDO desde época limpio={c['epochs_done']} / ruidoso={n['epochs_done']} "
-              f"hasta {args.epochs}", flush=True)
+              f"hasta {args.epochs} | wd={args.weight_decay} dropout={args.dropout} "
+              f"scheduler={args.scheduler}", flush=True)
+
+    # actualiza reports/noise_train_compare.png tras cada época (lee ambas historias en vivo)
+    live = LivePlot(t_clean, t_noisy, args.tipo, args.nivel)
+    t_clean.callbacks.append(live)
+    t_noisy.callbacks.append(live)
 
     print(f"Modelo: CNN {channels} | params={m_clean.count_params()['params_total']:,} | "
           f"ruido train: {args.tipo} {args.nivel} | eval: LIMPIO", flush=True)
@@ -118,18 +155,19 @@ def plot_history(hc, hn, tipo, nivel, out="reports/noise_train_compare.png") -> 
     except Exception as e:
         print(f"(sin gráfica: {e})", flush=True)
         return
-    ep = range(1, len(hc) + 1)
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(ep, hc, "o-", label="entrenado LIMPIO")
-    ax.plot(ep, hn, "o-", label=f"entrenado RUIDOSO ({tipo} {nivel})")
+    ax.plot(range(1, len(hc) + 1), hc, "o-", label="entrenado LIMPIO")
+    ax.plot(range(1, len(hn) + 1), hn, "o-", label=f"entrenado RUIDOSO ({tipo} {nivel})")
     ax.set_xlabel("época"); ax.set_ylabel("val_accuracy (evaluado en LIMPIO)")
     ax.set_title("Entrenamiento limpio vs ruidoso (test/val limpios)")
     ax.grid(True, alpha=0.3); ax.legend()
-    if len(hc) <= 12:
-        ax.set_xticks(list(ep))
+    n = max(len(hc), len(hn))
+    if n <= 12:
+        ax.set_xticks(list(range(1, n + 1)))
     fig.tight_layout()
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=120)
+    plt.close(fig)   # LivePlot llama esto cada época; cerrar evita acumular figuras en memoria
     print(f"Gráfica: {out}", flush=True)
 
 
