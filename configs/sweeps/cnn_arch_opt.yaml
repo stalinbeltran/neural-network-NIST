@@ -1,0 +1,22 @@
+# Optimización de ESTRUCTURA DE CAPAS y PROFUNDIDAD de la CNN. Solo se varía model.channels
+# (profundidad = nº de bloques; anchura = canales por bloque). Resto fijo y rápido para caber en ~1h:
+# lr=0.009 (alto pero aún estable -> más aprendizaje por época), batch 256, 7 épocas.
+# 6 arquitecturas x 2 semillas = 12 corridas.
+name: cnn_arch_opt
+base: configs/models/cnn_full.yaml
+mode: ofat
+
+baseline:
+  train.epochs: 7
+  train.lr: 0.009
+  train.batch_size: 256
+  model.channels: [16]
+  model.kernel_size: 3
+  model.fc_hidden: 128
+  model.batchnorm: false
+  model.dropout: 0.0
+
+axes:
+  model.channels: [[16, 32], [32, 64], [16, 32, 64], [32, 64, 128], [16, 32, 64, 128]]
+
+seeds: [0, 1]
