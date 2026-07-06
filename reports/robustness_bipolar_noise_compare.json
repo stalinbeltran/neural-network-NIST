@@ -1,0 +1,262 @@
+{
+  "clean": {
+    "limpio": 0.9939,
+    "bipolar": 0.9908,
+    "bipolar+gauss": 0.9917
+  },
+  "noise": {
+    "gaussiano": {
+      "limpio": {
+        "nivel_1": 0.9923,
+        "nivel_2": 0.9863,
+        "nivel_3": 0.8151,
+        "nivel_4": 0.4524,
+        "nivel_5": 0.2739
+      },
+      "bipolar": {
+        "nivel_1": 0.9895,
+        "nivel_2": 0.9741,
+        "nivel_3": 0.5876,
+        "nivel_4": 0.2649,
+        "nivel_5": 0.1492
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9913,
+        "nivel_2": 0.9912,
+        "nivel_3": 0.9694,
+        "nivel_4": 0.8558,
+        "nivel_5": 0.6521
+      }
+    },
+    "sal_pimienta": {
+      "limpio": {
+        "nivel_1": 0.9844,
+        "nivel_2": 0.9709,
+        "nivel_3": 0.8863,
+        "nivel_4": 0.6601,
+        "nivel_5": 0.3984
+      },
+      "bipolar": {
+        "nivel_1": 0.9757,
+        "nivel_2": 0.936,
+        "nivel_3": 0.7451,
+        "nivel_4": 0.417,
+        "nivel_5": 0.2218
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9897,
+        "nivel_2": 0.9889,
+        "nivel_3": 0.9816,
+        "nivel_4": 0.9433,
+        "nivel_5": 0.8078
+      }
+    },
+    "speckle": {
+      "limpio": {
+        "nivel_1": 0.9923,
+        "nivel_2": 0.9841,
+        "nivel_3": 0.9438,
+        "nivel_4": 0.9063,
+        "nivel_5": 0.8753
+      },
+      "bipolar": {
+        "nivel_1": 0.9887,
+        "nivel_2": 0.9772,
+        "nivel_3": 0.9004,
+        "nivel_4": 0.8239,
+        "nivel_5": 0.777
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9904,
+        "nivel_2": 0.9873,
+        "nivel_3": 0.9726,
+        "nivel_4": 0.9533,
+        "nivel_5": 0.937
+      }
+    },
+    "poisson": {
+      "limpio": {
+        "nivel_1": 0.9937,
+        "nivel_2": 0.9925,
+        "nivel_3": 0.9922,
+        "nivel_4": 0.99,
+        "nivel_5": 0.982
+      },
+      "bipolar": {
+        "nivel_1": 0.9903,
+        "nivel_2": 0.9903,
+        "nivel_3": 0.9877,
+        "nivel_4": 0.986,
+        "nivel_5": 0.9711
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9918,
+        "nivel_2": 0.9913,
+        "nivel_3": 0.9916,
+        "nivel_4": 0.9899,
+        "nivel_5": 0.9865
+      }
+    },
+    "uniforme": {
+      "limpio": {
+        "nivel_1": 0.993,
+        "nivel_2": 0.9926,
+        "nivel_3": 0.9902,
+        "nivel_4": 0.9821,
+        "nivel_5": 0.9238
+      },
+      "bipolar": {
+        "nivel_1": 0.9903,
+        "nivel_2": 0.9895,
+        "nivel_3": 0.9848,
+        "nivel_4": 0.9547,
+        "nivel_5": 0.7587
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9912,
+        "nivel_2": 0.9915,
+        "nivel_3": 0.9919,
+        "nivel_4": 0.9883,
+        "nivel_5": 0.9804
+      }
+    },
+    "desenfoque_gaussiano": {
+      "limpio": {
+        "nivel_1": 0.992,
+        "nivel_2": 0.9831,
+        "nivel_3": 0.9075,
+        "nivel_4": 0.5556,
+        "nivel_5": 0.1535
+      },
+      "bipolar": {
+        "nivel_1": 0.9887,
+        "nivel_2": 0.9798,
+        "nivel_3": 0.9355,
+        "nivel_4": 0.777,
+        "nivel_5": 0.2972
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9902,
+        "nivel_2": 0.9859,
+        "nivel_3": 0.9607,
+        "nivel_4": 0.8743,
+        "nivel_5": 0.4924
+      }
+    },
+    "oclusion": {
+      "limpio": {
+        "nivel_1": 0.9515,
+        "nivel_2": 0.8489,
+        "nivel_3": 0.6818,
+        "nivel_4": 0.4571,
+        "nivel_5": 0.2552
+      },
+      "bipolar": {
+        "nivel_1": 0.9592,
+        "nivel_2": 0.87,
+        "nivel_3": 0.6873,
+        "nivel_4": 0.4579,
+        "nivel_5": 0.2455
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9655,
+        "nivel_2": 0.8846,
+        "nivel_3": 0.7346,
+        "nivel_4": 0.5231,
+        "nivel_5": 0.3072
+      }
+    },
+    "iluminacion_desigual": {
+      "limpio": {
+        "nivel_1": 0.9929,
+        "nivel_2": 0.9887,
+        "nivel_3": 0.9704,
+        "nivel_4": 0.9157,
+        "nivel_5": 0.807
+      },
+      "bipolar": {
+        "nivel_1": 0.9902,
+        "nivel_2": 0.9889,
+        "nivel_3": 0.9851,
+        "nivel_4": 0.972,
+        "nivel_5": 0.9263
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9918,
+        "nivel_2": 0.9914,
+        "nivel_3": 0.9894,
+        "nivel_4": 0.9837,
+        "nivel_5": 0.966
+      }
+    },
+    "distorsion_elastica": {
+      "limpio": {
+        "nivel_1": 0.9922,
+        "nivel_2": 0.9846,
+        "nivel_3": 0.9674,
+        "nivel_4": 0.9114,
+        "nivel_5": 0.7565
+      },
+      "bipolar": {
+        "nivel_1": 0.9867,
+        "nivel_2": 0.9791,
+        "nivel_3": 0.9569,
+        "nivel_4": 0.8851,
+        "nivel_5": 0.6993
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9894,
+        "nivel_2": 0.9845,
+        "nivel_3": 0.9641,
+        "nivel_4": 0.8973,
+        "nivel_5": 0.7274
+      }
+    },
+    "rayas_horizontales": {
+      "limpio": {
+        "nivel_1": 0.9574,
+        "nivel_2": 0.9073,
+        "nivel_3": 0.918,
+        "nivel_4": 0.9628,
+        "nivel_5": 0.9838
+      },
+      "bipolar": {
+        "nivel_1": 0.9402,
+        "nivel_2": 0.9221,
+        "nivel_3": 0.8679,
+        "nivel_4": 0.8546,
+        "nivel_5": 0.9198
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9878,
+        "nivel_2": 0.9887,
+        "nivel_3": 0.9886,
+        "nivel_4": 0.9896,
+        "nivel_5": 0.9897
+      }
+    },
+    "cuantizacion": {
+      "limpio": {
+        "nivel_1": 0.9939,
+        "nivel_2": 0.9932,
+        "nivel_3": 0.9932,
+        "nivel_4": 0.9927,
+        "nivel_5": 0.9904
+      },
+      "bipolar": {
+        "nivel_1": 0.9907,
+        "nivel_2": 0.99,
+        "nivel_3": 0.9901,
+        "nivel_4": 0.9904,
+        "nivel_5": 0.9864
+      },
+      "bipolar+gauss": {
+        "nivel_1": 0.9918,
+        "nivel_2": 0.9915,
+        "nivel_3": 0.9907,
+        "nivel_4": 0.9913,
+        "nivel_5": 0.9906
+      }
+    }
+  }
+}
