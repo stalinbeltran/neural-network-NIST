@@ -147,3 +147,14 @@ def cuantizacion(niveles: int):
     def _apply(img):
         return torch.round(img * (niveles - 1)) / (niveles - 1)
     return _apply
+
+
+@register("invertido")
+def invertido():
+    """Negativo fotográfico: invierte la intensidad (pixel p -> 1 - p). Fondo negro <-> trazo blanco.
+
+    No es ruido ni tiene niveles: es una transformación determinista y reversible. Útil para
+    estudiar si la red depende de la polaridad fondo/trazo (MNIST es trazo claro sobre fondo negro)."""
+    def _apply(img):
+        return 1.0 - img
+    return _apply

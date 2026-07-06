@@ -60,6 +60,15 @@ def test_stochastic_noise_changes_image():
         assert not torch.equal(out, img), name
 
 
+def test_invertido_is_photographic_negative():
+    img = _sample()
+    out = build_transform("invertido")(img)
+    assert out.shape == img.shape
+    assert torch.allclose(out, 1.0 - img)
+    # doble inversión = identidad
+    assert torch.allclose(build_transform("invertido")(out), img)
+
+
 def test_lazy_subset_generates_caches_and_reuses(tmp_path):
     """On-demand: se genera al primer uso, se cachea y se reutiliza idéntico (determinista)."""
     from nnist.data import load_noisy_blob
