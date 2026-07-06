@@ -20,6 +20,7 @@ NOISE_CASES = [
     ("distorsion_elastica", {"alpha": 34}),
     ("rayas_horizontales", {"espaciado": 4}),
     ("cuantizacion", {"niveles": 3}),
+    ("bajo_contraste", {"factor": 0.40}),
 ]
 
 

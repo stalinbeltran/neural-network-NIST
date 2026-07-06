@@ -57,3 +57,7 @@ types:
   cuantizacion:           # reduce profundidad de bits; `niveles` de gris, MENOS = más degradado
     param: niveles
     levels: { nivel_1: 8, nivel_2: 5, nivel_3: 4, nivel_4: 3, nivel_5: 2 }
+
+  bajo_contraste:         # comprime la intensidad hacia el gris medio; `factor` conservado, MENOR = más degradado
+    param: factor
+    levels: { nivel_1: 0.80, nivel_2: 0.60, nivel_3: 0.40, nivel_4: 0.25, nivel_5: 0.10 }

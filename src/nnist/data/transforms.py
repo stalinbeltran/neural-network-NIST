@@ -149,6 +149,19 @@ def cuantizacion(niveles: int):
     return _apply
 
 
+@register("bajo_contraste")
+def bajo_contraste(factor: float):
+    """Baja el contraste comprimiendo la intensidad hacia el gris medio (0.5).
+
+    `factor` = fracción de contraste CONSERVADA: out = 0.5 + (img - 0.5) * factor.
+    factor=1.0 deja la imagen intacta; factor=0.0 la aplana a gris uniforme. Como en
+    poisson/cuantización, un valor MENOR = más degradado (menos contraste), aunque
+    nivel_1..5 siga yendo leve→severo. Determinista (sin RNG)."""
+    def _apply(img):
+        return _clamp01(0.5 + (img - 0.5) * factor)
+    return _apply
+
+
 @register("invertido")
 def invertido():
     """Negativo fotográfico: invierte la intensidad (pixel p -> 1 - p). Fondo negro <-> trazo blanco.
