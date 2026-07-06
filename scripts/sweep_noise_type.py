@@ -39,17 +39,18 @@ class PrintEpoch(Callback):
 
 class LivePlot(Callback):
     """Regenera el gráfico de barras (val limpio por tipo de ruido) tras cada época."""
-    def __init__(self, trainers: dict, labels: list, nivel: str):
+    def __init__(self, trainers: dict, labels: list, nivel: str, out: str):
         self.trainers = trainers
         self.labels = labels
         self.nivel = nivel
+        self.out = out
 
     def on_epoch_end(self, trainer, epoch, metrics):
         scores = {}
         for lb in self.labels:
             h = self.trainers[lb].history["val_accuracy"]
             scores[lb] = max(h) if h else 0.0   # mejor val alcanzada hasta ahora
-        plot_bars(scores, self.nivel)
+        plot_bars(scores, self.nivel, out=self.out)
 
 
 def main() -> None:
@@ -62,6 +63,10 @@ def main() -> None:
     ap.add_argument("--dropout", type=float, default=0.2)
     ap.add_argument("--weight-decay", type=float, default=1e-4)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--ckpt-dir", default=str(CKPT_DIR),
+                    help="carpeta de checkpoints (usar una copia para no tocar corridas en prueba)")
+    ap.add_argument("--id-prefix", default="noisetype", help="prefijo del id en la bitácora")
+    ap.add_argument("--plot-out", default="reports/noise_type_sweep.png")
     args = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -70,6 +75,7 @@ def main() -> None:
 
     channels = [16, 32, 64]
     input_shape = (1, 28, 28)
+    ckpt_dir = Path(args.ckpt_dir)                 # configurable: usar copia para no tocar originales
     tipos = list(load_levels()["types"])          # los 11 tipos, en orden del YAML
     labels = [BASELINE] + tipos                    # baseline limpio primero
 
@@ -94,23 +100,24 @@ def main() -> None:
         set_seed(args.seed)   # misma init de pesos para todos (comparación justa)
         model = build_model("cnn", input_shape=input_shape, num_classes=10, channels=channels,
                             dropout=args.dropout)
-        ckpt = CKPT_DIR / f"ckpt_{lb}.pt"
+        ckpt = ckpt_dir / f"ckpt_{lb}.pt"
+        entry_id = f"{args.id_prefix}_{lb}"
         datos = "mnist_limpio" if lb == BASELINE else f"{lb} {args.nivel}"
-        logger = TrainingLogger(f"noisetype_{lb}", args.epochs, modelo=f"CNN{channels} d{args.dropout}",
+        logger = TrainingLogger(entry_id, args.epochs, modelo=f"CNN{channels} d{args.dropout}",
                                 datos=datos, checkpoint=str(ckpt))
         trainers[lb] = Trainer(model, make_cfg(),
                                callbacks=[ModelCheckpoint(ckpt, every=1), PrintEpoch(lb), logger])
-        log_training(id=f"noisetype_{lb}", estado="en_curso", modelo=f"CNN{channels} d{args.dropout}",
+        log_training(id=entry_id, estado="en_curso", modelo=f"CNN{channels} d{args.dropout}",
                      datos=datos, épocas=f"0/{args.epochs}", checkpoint=str(ckpt))
 
-    live = LivePlot(trainers, labels, args.nivel)
+    live = LivePlot(trainers, labels, args.nivel, args.plot_out)
     for lb in labels:
         trainers[lb].callbacks.append(live)
 
     if args.resume:
         for lb in labels:
-            info = trainers[lb].resume_from(CKPT_DIR / f"ckpt_{lb}.pt")
-            print(f"REANUDANDO {lb} desde época {info['epochs_done']}", flush=True)
+            info = trainers[lb].resume_from(ckpt_dir / f"ckpt_{lb}.pt")
+            print(f"REANUDANDO {lb} desde época {info['epochs_done']} (hasta {args.epochs})", flush=True)
 
     # entrena cada modelo (secuencial); el baseline primero como referencia
     results = {}
@@ -121,7 +128,7 @@ def main() -> None:
         val_best = max(trainers[lb].history["val_accuracy"])
         results[lb] = {"test_clean": acc, "val_best": val_best,
                        "val": trainers[lb].history["val_accuracy"]}
-        log_training(id=f"noisetype_{lb}", estado="hecho", épocas=f"{args.epochs}/{args.epochs}",
+        log_training(id=f"{args.id_prefix}_{lb}", estado="hecho", épocas=f"{args.epochs}/{args.epochs}",
                      val=val_best, test=acc)
         print(f"  -> {lb}: TEST_limpio={acc:.4f} | mejor val={val_best:.4f}", flush=True)
 
@@ -134,12 +141,12 @@ def main() -> None:
         marca = "  <- baseline" if lb == BASELINE else (" (mejora)" if delta > 0 else "")
         print(f"{lb:<22}{r['test_clean']:<13.4f}{delta:<+18.2f}{marca}", flush=True)
 
-    CKPT_DIR.mkdir(parents=True, exist_ok=True)
-    (CKPT_DIR / "history.json").write_text(json.dumps(
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    (ckpt_dir / "history.json").write_text(json.dumps(
         {"nivel": args.nivel, "epochs": args.epochs, "channels": channels,
          "baseline_test": base_test, "results": results}, indent=2), encoding="utf-8")
 
-    plot_bars({lb: results[lb]["val_best"] for lb in labels}, args.nivel)
+    plot_bars({lb: results[lb]["val_best"] for lb in labels}, args.nivel, out=args.plot_out)
 
 
 def plot_bars(scores: dict, nivel: str, out: str = "reports/noise_type_sweep.png") -> None:
