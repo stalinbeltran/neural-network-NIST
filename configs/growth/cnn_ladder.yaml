@@ -1,0 +1,17 @@
+# Crecimiento gradual de una CNN por ETAPAS (Net2Net). Se empieza pequeño y se agranda
+# reutilizando lo aprendido. Lanzar:  python scripts/grow.py --config configs/growth/cnn_ladder.yaml
+name: cnn_ladder
+base: ../models/cnn_full.yaml   # dataset, kernel_size, batchnorm... salen de aquí
+
+seed: 0
+train:                          # defaults de entrenamiento por etapa (cada etapa puede sobreescribir)
+  epochs: 3
+  lr: 0.001
+
+# Cada etapa CRECE respecto a la anterior. Ensanchar (más canales / cabeza densa mayor) sin cambiar
+# la profundidad preserva la función exactamente (sin bache). Añadir un bloque conv es warm-start.
+stages:
+  - {channels: [16],     fc_hidden: 64}                  # etapa 0: red pequeña, desde cero
+  - {channels: [32],     fc_hidden: 64}                  # ensancha el bloque conv (exacto)
+  - {channels: [32, 64], fc_hidden: 64}                  # profundiza: + un bloque conv (warm-start)
+  - {channels: [32, 64], fc_hidden: 128, epochs: 5}      # ensancha la cabeza densa (exacto)

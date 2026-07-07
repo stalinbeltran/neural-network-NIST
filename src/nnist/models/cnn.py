@@ -19,6 +19,13 @@ class SimpleCNN(BaseModel):
                  fc_hidden=128, batchnorm=False, dropout=0.0):
         super().__init__(input_shape, num_classes)
 
+        # Hiperparámetros guardados para introspección (los usa grow_cnn para crecer la red).
+        self.channels = tuple(channels)
+        self.kernel_size = kernel_size
+        self.fc_hidden = fc_hidden
+        self.batchnorm = batchnorm
+        self.dropout = dropout
+
         c_in = input_shape[0]
         conv: list[nn.Module] = []
         for c_out in channels:

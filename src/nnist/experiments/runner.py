@@ -32,12 +32,18 @@ def _build_transform(cfg_transform: dict | None):
     return build_transform(name, **params), f"subset:{name}"
 
 
-def run(config, output_root: str = "experiments", resume_from: str | None = None) -> RunResult:
-    """Ejecuta (o REANUDA) una corrida.
+def run(config, output_root: str = "experiments", resume_from: str | None = None,
+        prebuilt_model=None, return_model: bool = False):
+    """Ejecuta (o REANUDA) una corrida. Devuelve un `RunResult` (o `(RunResult, model)` si
+    `return_model=True`).
 
     `resume_from`: carpeta de una corrida previa con `checkpoint.pt`. Se continúa el entrenamiento
     en esa misma carpeta hasta `config.train.epochs` (que debe ser >= la época del checkpoint).
     El checkpoint se guarda cada `config.train.checkpoint_every` épocas (opt-in; por defecto 5 al reanudar).
+
+    `prebuilt_model`: si se pasa, se usa ESE modelo en vez de construirlo desde `config.model` (lo
+    usa el crecimiento gradual, que trasplanta pesos con `grow_cnn` antes de entrenar). Debe tener la
+    `input_shape`/`num_classes` que derivan de los datos.
     """
     set_seed(config.seed)
 
@@ -52,8 +58,17 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
 
     # 2. modelo, con input_shape DERIVADA de los datos (no hardcodeada)
     model_kwargs = {k: v for k, v in config.model.items() if k != "name"}
-    model = build_model(config.model["name"], input_shape=bundle.input_shape,
-                        num_classes=bundle.num_classes, **model_kwargs)
+    if prebuilt_model is not None:
+        if tuple(prebuilt_model.input_shape) != tuple(bundle.input_shape):
+            raise ValueError(f"prebuilt_model.input_shape {tuple(prebuilt_model.input_shape)} != "
+                             f"datos {tuple(bundle.input_shape)}")
+        if prebuilt_model.num_classes != bundle.num_classes:
+            raise ValueError(f"prebuilt_model.num_classes {prebuilt_model.num_classes} != "
+                             f"datos {bundle.num_classes}")
+        model = prebuilt_model
+    else:
+        model = build_model(config.model["name"], input_shape=bundle.input_shape,
+                            num_classes=bundle.num_classes, **model_kwargs)
     params = model.count_params()
     logger.info("Modelo %s | params=%s", config.model["name"], params)
 
@@ -131,4 +146,4 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
     log_training(id=run_id, estado="hecho", épocas=f"{trainer._epochs_done}/{train_cfg.epochs}",
                  val=val_acc, test=test_acc)
     logger.info("Corrida guardada en %s | val=%.4f | test=%.4f", out_dir, val_acc, test_acc)
-    return result
+    return (result, model) if return_model else result
