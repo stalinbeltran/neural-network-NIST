@@ -180,6 +180,15 @@ def main() -> None:
                     help="npz con clave 'images'; permite reanudar con OTRO set de entradas")
     ap.add_argument("--resume", type=Path, default=None,
                     help="model.npz de una corrida previa: continua su entrenamiento en vez de empezar de cero")
+    # --- neuronas inhibidoras (reduccion de pesos; el algoritmo base solo incrementa) ---
+    ap.add_argument("--inhib", action="store_true", help="activa las neuronas inhibidoras")
+    ap.add_argument("--inhib-spacing", type=int, default=5, help="separacion de los inhibidores en el mapa")
+    ap.add_argument("--inhib-radius", type=int, default=8, help="alcance (radio) de cada inhibidor")
+    ap.add_argument("--inhib-metric", choices=["cheby", "euclid", "manhattan"], default="cheby")
+    ap.add_argument("--fire-threshold", type=float, default=0.40, help="umbral de disparo (para contar disparos)")
+    ap.add_argument("--inhib-K", type=float, default=0.10, help="bajo este valor el inhibidor no reduce nada")
+    ap.add_argument("--inhib-gain", type=float, default=1.0, help="cuanto reduce por unidad de exceso")
+    ap.add_argument("--inhib-mode", choices=["fraction", "hinge", "sigmoid"], default="fraction")
     args = ap.parse_args()
 
     if args.n_out != GRID * GRID:
@@ -193,10 +202,20 @@ def main() -> None:
         if layer.n_in != X.shape[1]:
             raise ValueError(f"la red guardada espera {layer.n_in} entradas pero el dataset tiene {X.shape[1]}")
         print(f"reanudando desde {args.resume}: {layer.epochs_trained} iteraciones ya entrenadas, "
-              f"rule={layer.rule} anti={layer.anti}")
+              f"rule={layer.rule}")
     else:
         layer = CompetitiveLayer(X.shape[1], args.n_out, rule=args.rule,
                                  temperature=args.temperature, anti=args.anti, seed=args.seed)
+
+    if args.inhib:                                       # activa/reconfigura la inhibicion (fresco o resume)
+        n_inh = layer.configure_inhibition(spacing=args.inhib_spacing, radius=args.inhib_radius,
+                                           metric=args.inhib_metric, fire_threshold=args.fire_threshold,
+                                           K=args.inhib_K, gain=args.inhib_gain, mode=args.inhib_mode)
+        print(f"inhibicion ON: {n_inh} inhibidores (cada {args.inhib_spacing}, radio {args.inhib_radius} "
+              f"{args.inhib_metric})  theta={args.fire_threshold} K={args.inhib_K} gain={args.inhib_gain} "
+              f"modo={args.inhib_mode}")
+    elif layer.inhib_on:
+        print(f"inhibicion ON (heredada del modelo): {len(layer._inhib_regions)} inhibidores")
     rng = np.random.default_rng(args.seed + 1)
 
     run_dir = Path("experiments") / f"hebbian_lines_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -272,12 +291,13 @@ def main() -> None:
             np.savez_compressed(run_dir / "weights" / f"epoch_{ep:03d}.npz", W=layer.W)
             layer.save(run_dir / "model.npz")           # estado completo reanudable (se sobrescribe)
         print(f"iter {ep:03d}/{args.epochs}  lr={lr:.3f}  act={m['mean_winner_activation']:.3f}  "
-              f"cobertura={m['coverage']:.2f}  ganadores_unicos={m['unique_winners']}  muertas={m['dead_units']}")
+              f"cobertura={m['coverage']:.2f}  ganadores_unicos={m['unique_winners']}  "
+              f"muertas={m['dead_units']}  disparadas/entrada={m['mean_fired']:.1f}")
 
     # registro de metricas
     with open(run_dir / "metrics.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["epoch", "lr", "mean_winner_activation", "coverage",
-                                          "unique_winners", "dead_units"])
+                                          "unique_winners", "dead_units", "mean_fired"])
         w.writeheader()
         for m in metrics:
             w.writerow({k: m[k] for k in w.fieldnames})
