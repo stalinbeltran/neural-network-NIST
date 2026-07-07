@@ -13,7 +13,8 @@ from .noisy import (
 )
 from .registry import available, build_transform
 from .shapes import (
-    generate_lines_hv, generate_shapes, load_lines_curves, load_lines_hv, load_shapes_blob,
+    generate_curriculum, generate_lines_hv, generate_shapes, load_lines_curves, load_lines_hv,
+    load_shapes_blob,
 )
 
 __all__ = [
@@ -23,5 +24,5 @@ __all__ = [
     "inverted_dataset", "load_inverted", "generate_inverted",
     "inverted_noisy_dataset", "load_inverted_noisy_blob", "generate_inverted_noisy",
     "load_lines_curves", "generate_shapes", "load_shapes_blob",
-    "load_lines_hv", "generate_lines_hv",
+    "load_lines_hv", "generate_lines_hv", "generate_curriculum",
 ]

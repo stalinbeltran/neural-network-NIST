@@ -232,3 +232,41 @@ def load_lines_hv(transform=None, val_fraction: float = 0.2, split_seed: int = 0
     cache = _split_cache(splits_dir, f"lines_{variant}", val_fraction, split_seed)
     train, val = frozen_stratified_split(full_train, val_fraction, split_seed, cache)
     return DatasetBundle(train, val, test, num_classes=2, input_shape=(1, SIZE, SIZE))
+
+
+# --------------------------------------------------------------------------- curriculum flexible
+# Generador recta (0) vs curva (1) con TODOS los ejes de dificultad parametrizados, para el
+# entrenamiento gradual (curriculum): longitud de recta, radio y amplitud de curva, jitter de
+# posición, rotación de curvas y ruido gaussiano. Devuelve un blob en memoria (sin caché ni split);
+# el orquestador genera datos frescos por etapa. Ver scripts/overnight_curriculum.py.
+
+def _jittered_center(rng: np.random.Generator, jitter: float) -> tuple[float, float]:
+    j = jitter * _SS
+    return _S / 2 + rng.uniform(-j, j), _S / 2 + rng.uniform(-j, j)
+
+
+def generate_curriculum(n_per_class: int, seed: int, *, pos_jitter: float = 0.0,
+                        len_range: tuple[float, float] = (0.9, 1.1),
+                        radius_range: tuple[float, float] = (0.5, 0.7),
+                        span_range: tuple[float, float] = (130.0, 150.0),
+                        rotate: bool = False, noise: float = 0.0) -> dict:
+    """Blob {images uint8 (2N,28,28), labels} con N rectas + N curvas según los rangos de dificultad."""
+    rng = np.random.default_rng(seed)
+    imgs, labels = [], []
+    for _ in range(n_per_class):                                   # rectas (clase 0)
+        length = rng.uniform(*len_range)
+        angle = rng.uniform(0, 180)
+        cx, cy = _jittered_center(rng, pos_jitter)
+        imgs.append(_make_short_line(angle, length, cx, cy))
+        labels.append(0)
+    for _ in range(n_per_class):                                   # curvas (clase 1)
+        r = rng.uniform(*radius_range)
+        span = rng.uniform(*span_range)
+        orient = rng.uniform(0, 360) if rotate else 90.0
+        imgs.append(_make_curve(r, orient, span, pos_jitter, rng))
+        labels.append(1)
+    images = np.stack(imgs).astype(np.float32)
+    if noise > 0:                                                  # ruido gaussiano opcional
+        images = images + rng.normal(0, noise * 255, images.shape)
+    images = np.clip(images, 0, 255).astype(np.uint8)
+    return {"images": torch.from_numpy(images), "labels": torch.tensor(labels, dtype=torch.long)}
