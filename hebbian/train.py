@@ -189,6 +189,8 @@ def main() -> None:
     ap.add_argument("--inhib-K", type=float, default=0.10, help="bajo este valor el inhibidor no reduce nada")
     ap.add_argument("--inhib-gain", type=float, default=1.0, help="cuanto reduce por unidad de exceso")
     ap.add_argument("--inhib-mode", choices=["fraction", "hinge", "sigmoid"], default="fraction")
+    ap.add_argument("--reinforce-gain", type=float, default=1.0,
+                    help="ganancia de activacion: multiplica el refuerzo (incremento de pesos)")
     args = ap.parse_args()
 
     if args.n_out != GRID * GRID:
@@ -205,7 +207,8 @@ def main() -> None:
               f"rule={layer.rule}")
     else:
         layer = CompetitiveLayer(X.shape[1], args.n_out, rule=args.rule,
-                                 temperature=args.temperature, anti=args.anti, seed=args.seed)
+                                 temperature=args.temperature, anti=args.anti,
+                                 reinforce_gain=args.reinforce_gain, seed=args.seed)
 
     if args.inhib:                                       # activa/reconfigura la inhibicion (fresco o resume)
         n_inh = layer.configure_inhibition(spacing=args.inhib_spacing, radius=args.inhib_radius,

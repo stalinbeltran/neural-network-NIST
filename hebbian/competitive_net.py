@@ -44,7 +44,7 @@ import numpy as np
 
 class CompetitiveLayer:
     def __init__(self, n_in: int, n_out: int, *, rule: str = "above_mean",
-                 temperature: float = 0.1, anti: float = 1.0,
+                 temperature: float = 0.1, anti: float = 1.0, reinforce_gain: float = 1.0,
                  grid_h: int | None = None, grid_w: int | None = None,
                  inhib_on: bool = False, inhib_spacing: int = 5, inhib_offset: int | None = None,
                  inhib_radius: int = 8, inhib_metric: str = "cheby", fire_threshold: float = 0.40,
@@ -54,7 +54,8 @@ class CompetitiveLayer:
         self.n_out = n_out
         self.rule = rule
         self.temperature = temperature
-        self.anti = anti                       # fuerza del castigo anti-Hebbiano (neuronas lejanas)
+        self.anti = anti                       # (legado, ya no se usa: el algoritmo base solo refuerza)
+        self.reinforce_gain = reinforce_gain   # GANANCIA DE ACTIVACION: multiplica el refuerzo
         # geometria del mapa (para UBICAR las neuronas inhibidoras). Por defecto cuadrado sqrt(n_out).
         if grid_h is None or grid_w is None:
             s = int(round(np.sqrt(n_out)))
@@ -185,7 +186,7 @@ class CompetitiveLayer:
         winner = int(np.argmax(a))
         self.win_count[winner] += 1
 
-        coef = lr * self._gate(a)                          # refuerzo Hebbiano (>= 0), escala con lr
+        coef = lr * self.reinforce_gain * self._gate(a)    # refuerzo: lr * ganancia_activacion * g
         if self.inhib_on:
             coef = coef - self._inhibition_coeffs(a)       # inhibicion: gain independiente del lr
         idx = np.nonzero(coef)[0]
@@ -245,6 +246,7 @@ class CompetitiveLayer:
             rule=np.str_(self.rule),
             temperature=np.float64(self.temperature),
             anti=np.float64(self.anti),
+            reinforce_gain=np.float64(self.reinforce_gain),
             grid_h=np.int64(self.grid_h),
             grid_w=np.int64(self.grid_w),
             inhib_on=np.int64(1 if self.inhib_on else 0),
@@ -271,6 +273,7 @@ class CompetitiveLayer:
         layer = cls(
             int(d["n_in"]), int(d["n_out"]), rule=str(d["rule"]),
             temperature=float(d["temperature"]), anti=float(d["anti"]),
+            reinforce_gain=g("reinforce_gain", 1.0, float),
             grid_h=g("grid_h", None, int), grid_w=g("grid_w", None, int),
             inhib_on=bool(g("inhib_on", 0, int)),
             inhib_spacing=g("inhib_spacing", 5, int), inhib_offset=g("inhib_offset", None, int),
