@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from ..data import build_transform, load_dataset
 from ..evaluation import RunResult, classification_report
 from ..models import build_model
-from ..training import EarlyStopping, ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
+from ..training import EarlyStopping, ModelCheckpoint, TrainConfig, Trainer, TrainingLogger, find_lr
 from ..utils import get_logger, log_training, set_seed
 
 logger = get_logger("nnist.runner")
@@ -76,6 +76,18 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
     train_dict = dict(config.train)
     checkpoint_every = train_dict.pop("checkpoint_every", None)   # opt-in; no es campo de TrainConfig
     early_stop = train_dict.pop("early_stopping", None)           # opt-in; int (patience) o dict
+
+    # lr: auto -> el LR finder elige el learning rate inicial automáticamente (sondea unos batches
+    # subiendo el lr y coge el del descenso más pronunciado; restaura los pesos, entrena desde cero).
+    auto_lr = None
+    if train_dict.get("lr") == "auto":
+        probe = DataLoader(bundle.train, batch_size=train_dict.get("batch_size", 128), shuffle=True)
+        auto_lr = find_lr(model, probe, optimizer=train_dict.get("optimizer", "adam"),
+                          weight_decay=train_dict.get("weight_decay", 0.0),
+                          device=train_dict.get("device", "cpu"))["suggested_lr"]
+        train_dict["lr"] = auto_lr
+        logger.info("LR automático (LR finder): %.4g", auto_lr)
+
     train_cfg = TrainConfig(**train_dict)
     train_loader = DataLoader(bundle.train, batch_size=train_cfg.batch_size, shuffle=True)
     val_loader = DataLoader(bundle.val, batch_size=train_cfg.batch_size, shuffle=False)
@@ -136,7 +148,8 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
         val_accuracy=val_acc,       # métrica de selección/comparación del sweep (VAL)
         train_seconds=train_seconds,
         infer_ms_per_sample=infer_ms,
-        extra={"classification_report": report},
+        extra={"classification_report": report,
+               **({"auto_lr": auto_lr} if auto_lr is not None else {})},
     )
 
     # 5. persistir corrida reproducible (out_dir ya creada antes del entrenamiento)

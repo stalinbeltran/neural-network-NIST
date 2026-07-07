@@ -1,0 +1,8 @@
+# Igual que la CNN minúscula, pero el learning rate lo elige SOLO el LR finder (train.lr: auto).
+# Entrena la misma red diminuta con las mismas 30+30 imágenes, sin tuneo manual del lr.
+#   python scripts/train.py --config configs/models/cnn_shapes_tiny_auto.yaml
+name: cnn_shapes_tiny_auto
+extends: cnn_shapes_tiny.yaml
+
+train:
+  lr: auto     # el runner corre el LR finder antes de entrenar y usa el lr sugerido
