@@ -1,0 +1,32 @@
+# Rectas HORIZONTALES vs VERTICALES: segmentos cortos en posición aleatoria (2 clases).
+# 40 train + 20 test por clase. Dropout fuerte para que no sobreaprenda (aunque, por ser una
+# característica local invariante a la posición, la CNN la aprende con cualquier dropout).
+#   python scripts/train.py --config configs/models/cnn_lines_hv.yaml
+name: cnn_lines_hv
+extends: ../base.yaml
+
+dataset:
+  name: lines_hv
+  val_fraction: 0.2
+  split_seed: 0
+  n_train_per_class: 40      # 40 horizontales + 40 verticales (pool train; val sale del 20%)
+  n_test_per_class: 20       # 20 + 20 de test disjunto
+  length_frac: 0.35          # segmentos cortos (~1/3 de la imagen)
+  angle_jitter: 8.0          # variedad angular sin cruzar los 45° (clases separables)
+
+train:
+  epochs: 80
+  lr: 0.005
+  batch_size: 16
+  weight_decay: 0.001
+  early_stopping:
+    patience: 20
+    restore_best: true
+
+model:
+  name: cnn
+  channels: [8, 16]
+  kernel_size: 3
+  fc_hidden: 64
+  batchnorm: false
+  dropout: 0.7               # dropout FUERTE de neuronas densas (sube a 0.95 si quieres empujar más)

@@ -1,0 +1,8 @@
+# ¿Ayuda el dropout fuerte a generalizar desde 60 imágenes DIFÍCILES (alta variabilidad)?
+# Misma red y datos; se varía solo la intensidad del dropout. Ordena por val_accuracy.
+#   python scripts/sweep.py --config configs/sweeps/shapes_dropout_grid.yaml
+name: shapes_dropout
+base: configs/models/cnn_shapes_dropout.yaml
+
+grid:
+  model.dropout: [0.0, 0.3, 0.6, 0.8]

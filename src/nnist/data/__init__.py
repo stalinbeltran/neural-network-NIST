@@ -12,7 +12,9 @@ from .noisy import (
     generate_subset, load_levels, load_noisy_blob, noisy_dataset,
 )
 from .registry import available, build_transform
-from .shapes import generate_shapes, load_lines_curves, load_shapes_blob
+from .shapes import (
+    generate_lines_hv, generate_shapes, load_lines_curves, load_lines_hv, load_shapes_blob,
+)
 
 __all__ = [
     "DatasetBundle", "load_dataset", "load_mnist", "load_emnist", "load_nist_sd19",
@@ -21,4 +23,5 @@ __all__ = [
     "inverted_dataset", "load_inverted", "generate_inverted",
     "inverted_noisy_dataset", "load_inverted_noisy_blob", "generate_inverted_noisy",
     "load_lines_curves", "generate_shapes", "load_shapes_blob",
+    "load_lines_hv", "generate_lines_hv",
 ]

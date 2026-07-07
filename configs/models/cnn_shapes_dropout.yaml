@@ -1,0 +1,32 @@
+# Rectas vs curvas con los datos DIFÍCILES (alta variabilidad: posición y rotación aleatorias) —
+# los que hacían que la red no generalizara con 60 imágenes — y DROPOUT FUERTE para que no
+# sobreaprenda los pocos ejemplos: aunque hay muchas neuronas, se desactivan al azar en cada paso.
+#   python scripts/train.py --config configs/models/cnn_shapes_dropout.yaml
+name: cnn_shapes_dropout
+extends: ../base.yaml
+
+dataset:
+  name: lines_curves
+  val_fraction: 0.2
+  split_seed: 0
+  n_train_per_class: 30      # 30+30 reales, como al principio
+  n_test_per_class: 100
+  pos_jitter: 4.0            # <- variabilidad de estorbo (posición) que dispersaba las 60 imágenes
+  rotate_curves: true        # <- curvas en orientación aleatoria (lo "difícil" original)
+
+train:
+  epochs: 80
+  lr: 0.005
+  batch_size: 16
+  weight_decay: 0.001
+  early_stopping:
+    patience: 20
+    restore_best: true
+
+model:
+  name: cnn
+  channels: [8, 16]          # bastantes neuronas (~51k params): mucha capacidad de sobreaprender
+  kernel_size: 3
+  fc_hidden: 64              # capa densa donde actúa el dropout
+  batchnorm: false
+  dropout: 0.6              # DROPOUT FUERTE: desactiva el 60% de las neuronas densas en cada paso

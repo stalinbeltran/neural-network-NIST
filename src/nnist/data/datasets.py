@@ -160,8 +160,13 @@ def _load_lines_curves(**kwargs) -> DatasetBundle:
     return load_lines_curves(**kwargs)
 
 
+def _load_lines_hv(**kwargs) -> DatasetBundle:
+    from .shapes import load_lines_hv
+    return load_lines_hv(**kwargs)
+
+
 _LOADERS = {"mnist": load_mnist, "emnist": load_emnist, "nist_sd19": load_nist_sd19,
-            "lines_curves": _load_lines_curves}
+            "lines_curves": _load_lines_curves, "lines_hv": _load_lines_hv}
 
 
 def load_dataset(name: str, transform: Callable | None = None, **kwargs) -> DatasetBundle:

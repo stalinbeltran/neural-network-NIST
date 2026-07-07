@@ -1,9 +1,9 @@
-"""Genera y EXPORTA el dataset sintético rectas vs curvas para poder verlo.
+"""Genera y EXPORTA un dataset sintético de formas para poder verlo.
 
 Escribe PNGs individuales y un montaje (contact sheet) por clase en data/processed/shapes/preview/.
 
-Uso:  python scripts/generate_shapes.py            # 30 rectas + 30 curvas (lo pedido)
-      python scripts/generate_shapes.py --n 30
+Uso:  python scripts/generate_shapes.py                         # rectas vs curvas
+      python scripts/generate_shapes.py --kind lines_hv --n 40  # rectas horizontales vs verticales
 """
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from nnist.data.shapes import CLASSES, SHAPES_ROOT, generate_shapes
+from nnist.data.shapes import (
+    CLASSES, CLASSES_HV, SHAPES_ROOT, generate_lines_hv, generate_shapes,
+)
 
 
 def _montage(images: np.ndarray, cols: int = 10, pad: int = 2, scale: int = 3) -> Image.Image:
@@ -31,18 +33,23 @@ def _montage(images: np.ndarray, cols: int = 10, pad: int = 2, scale: int = 3) -
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--kind", choices=["lines_curves", "lines_hv"], default="lines_curves")
     ap.add_argument("--n", type=int, default=30, help="imágenes por clase")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    # split propio ("preview") para no pisar el caché de entrenamiento (train.pt), que puede tener
-    # un nº de imágenes distinto (escalado para que la CNN generalice).
-    blob = generate_shapes("preview", n_per_class=args.n, seed=args.seed)
+    # split propio ("preview_*") para no pisar el caché de entrenamiento.
+    if args.kind == "lines_hv":
+        blob = generate_lines_hv("preview_hv", n_per_class=args.n, seed=args.seed, save=False)
+        classes = CLASSES_HV
+    else:
+        blob = generate_shapes("preview", n_per_class=args.n, seed=args.seed, save=False)
+        classes = CLASSES
     images = blob["images"].numpy()
     labels = blob["labels"].numpy()
 
     preview = Path(SHAPES_ROOT) / "preview"
-    for cls, name in CLASSES.items():
+    for cls, name in classes.items():
         sub = preview / name
         sub.mkdir(parents=True, exist_ok=True)
         cls_imgs = images[labels == cls]
