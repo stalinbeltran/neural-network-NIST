@@ -113,19 +113,21 @@ def main() -> None:
     cfg = TrainConfig(epochs=args.epochs, lr=args.lr, batch_size=args.batch,
                       weight_decay=args.weight_decay, scheduler="cosine",
                       scheduler_params={"t_max": args.epochs})
+    noise_tag = f"{args.tipo}_{args.nivel.split('_')[1]}"    # p.ej. "bajo_contraste_3"
     ckpt = Path(args.ckpt_dir) / "ckpt_bipolar_noise.pt"
-    entry_id = "bipolar_noise"
+    entry_id = f"bipolar_noise_{args.tipo}"
+    datos = f"normal+invertido+{noise_tag}"
     trainer = Trainer(model, cfg, callbacks=[
         ModelCheckpoint(ckpt, every=1),
         LiveCurve(val_inv_ld, val_gauss_ld, args.out),
         TrainingLogger(entry_id, args.epochs, modelo=f"CNN{channels} d{args.dropout}",
-                       datos="normal+invertido+gaussiano_n3", checkpoint=str(ckpt)),
+                       datos=datos, checkpoint=str(ckpt)),
     ])
     info = trainer.resume_from(SRC_CKPT)   # continúa el bipolar (preserva el original)
     print(f"REANUDANDO bipolar desde época {info['epochs_done']} hasta {args.epochs} "
           f"(cosine t_max={args.epochs}, lr={args.lr})...", flush=True)
     log_training(id=entry_id, estado="en_curso", modelo=f"CNN{channels} d{args.dropout}",
-                 datos="normal+invertido+gaussiano_n3", épocas=f"{trainer.start_epoch}/{args.epochs}",
+                 datos=datos, épocas=f"{trainer.start_epoch}/{args.epochs}",
                  checkpoint=str(ckpt))
 
     trainer.fit(train_ld, val_norm_ld)

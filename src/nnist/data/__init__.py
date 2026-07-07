@@ -5,6 +5,9 @@ from .datasets import (
     load_nist_sd19, stratified_split,
 )
 from .inverted import generate_inverted, inverted_dataset, load_inverted
+from .inverted_noisy import (
+    generate_inverted_noisy, inverted_noisy_dataset, load_inverted_noisy_blob,
+)
 from .noisy import (
     generate_subset, load_levels, load_noisy_blob, noisy_dataset,
 )
@@ -15,4 +18,5 @@ __all__ = [
     "stratified_split", "frozen_stratified_split", "build_transform", "available",
     "noisy_dataset", "load_noisy_blob", "generate_subset", "load_levels",
     "inverted_dataset", "load_inverted", "generate_inverted",
+    "inverted_noisy_dataset", "load_inverted_noisy_blob", "generate_inverted_noisy",
 ]
