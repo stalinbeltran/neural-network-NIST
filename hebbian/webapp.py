@@ -62,7 +62,7 @@ PAGE = """<!doctype html><html lang=es><head><meta charset=utf-8>
 <h1>Red competitiva 784 &rarr; 2500 (50&times;50) &mdash; entrada vs. neuronas activadas</h1>
 <div class=row>
   <div class=panel><canvas id=inp width=28 height=28></canvas><span>entrada 28&times;28</span></div>
-  <div class=panel><canvas id=act width=50 height=50></canvas><span>activacion 50&times;50 (ganadora en rojo)</span></div>
+  <div class=panel><canvas id=act width=50 height=50></canvas><span id=actcap>disparo digital: blancas = disparan, ganadora en rojo</span></div>
   <div class=panel><canvas id=rf width=28 height=28></canvas><span>campo receptivo ganadora</span></div>
 </div>
 <div class=controls>
@@ -70,13 +70,21 @@ PAGE = """<!doctype html><html lang=es><head><meta charset=utf-8>
   <button id=prev>&laquo; anterior</button>
   <button id=next>siguiente &raquo;</button>
   <label>ms por entrada: <b id=msval>500</b>
-    <input id=ms type=range min=50 max=3000 step=50 value=500></label>
+    <input id=ms type=range min=10 max=1000 step=10 value=500></label>
+  <label>vista:
+    <select id=mode>
+      <option value=fire selected>disparo (digital)</option>
+      <option value=winner>solo ganadora</option>
+      <option value=full>activacion completa</option>
+    </select></label>
+  <label>umbral &theta;: <b id=thrval>0.40</b>
+    <input id=thr type=range min=0 max=0.49 step=0.01 value=0.40></label>
   <label><input id=shuffle type=checkbox> aleatorio</label>
 </div>
 <div class=readout id=readout></div>
 <script>
 const N_GRID=50, SIZE=28;
-let total=0, idx=0, playing=true, timer=null, ms=500, order=null;
+let total=0, idx=0, playing=true, timer=null, ms=500, order=null, mode='fire', thr=0.40;
 const $=id=>document.getElementById(id);
 
 function draw(canvas, arr, w, h, redAt){
@@ -90,11 +98,18 @@ function draw(canvas, arr, w, h, redAt){
 async function show(i){
   const r=await fetch('/api/frame?i='+i); const d=await r.json();
   draw($('inp'), d.input, SIZE, SIZE, null);
-  draw($('act'), d.act, N_GRID, N_GRID, d.winner);
+  let actArr, fired=null;
+  if(mode==='full'){ actArr=d.act; }
+  else if(mode==='winner'){ actArr=new Uint8Array(N_GRID*N_GRID); }
+  else { // disparo digital: blanco si activacion >= umbral
+    actArr=new Uint8Array(N_GRID*N_GRID); fired=0;
+    for(let k=0;k<actArr.length;k++){ if(d.araw[k]>=thr){actArr[k]=255;fired++;} }
+  }
+  draw($('act'), actArr, N_GRID, N_GRID, d.winner);
   draw($('rf'), d.rf, SIZE, SIZE, null);
+  let extra = (fired!=null) ? ' &nbsp; neuronas que disparan (&theta;='+thr.toFixed(2)+'): <code>'+fired+'</code>' : '';
   $('readout').innerHTML='entrada <code>'+ (i+1) +'/'+total+'</code> &nbsp; ganadora: neurona <code>#'
-    +d.winner+'</code> (fila '+d.wr+', col '+d.wc+') &nbsp; activacion <code>'+d.wact.toFixed(3)
-    +'</code> &nbsp; neuronas activadas: <code>'+d.n_active+'</code>';
+    +d.winner+'</code> (fila '+d.wr+', col '+d.wc+') &nbsp; activacion max <code>'+d.wact.toFixed(3)+'</code>'+extra;
 }
 
 function nextIndex(step){
@@ -107,6 +122,9 @@ function restartTimer(){ if(timer)clearInterval(timer); if(playing)timer=setInte
 
 $('ms').oninput=e=>{ms=+e.target.value;$('msval').textContent=ms;restartTimer();};
 $('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'Pausa':'Reproducir';restartTimer();};
+const CAPS={fire:'disparo digital: blancas = disparan, ganadora en rojo',winner:'solo la ganadora (rojo), resto en negro',full:'activacion completa (gradiente), ganadora en rojo'};
+$('mode').onchange=e=>{mode=e.target.value;$('actcap').innerHTML=CAPS[mode];show(idx);};
+$('thr').oninput=e=>{thr=+e.target.value;$('thrval').textContent=thr.toFixed(2);if(mode==='fire')show(idx);};
 $('next').onclick=()=>{nextIndex(1);show(idx);};
 $('prev').onclick=()=>{nextIndex(-1);show(idx);};
 $('shuffle').onchange=e=>{
@@ -149,7 +167,7 @@ def make_handler(layer: CompetitiveLayer, X: np.ndarray, Xn: np.ndarray):
                     "wr": winner // GRID,
                     "wc": winner % GRID,
                     "wact": float(a[winner]),
-                    "n_active": int((a > a.mean()).sum()),   # neuronas por encima de la media
+                    "araw": np.round(a, 3).tolist(),         # activaciones crudas (para umbral digital en cliente)
                 }
                 self._send(json.dumps(payload).encode(), "application/json")
             else:
