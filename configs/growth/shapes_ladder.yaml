@@ -1,0 +1,17 @@
+# Escalera de crecimiento gradual de una CNN para RECTAS vs CURVAS (2 clases).
+# Empieza minúscula (rápida) y crece reutilizando lo aprendido (Net2Net).
+# Lanzar:  python scripts/grow.py --config configs/growth/shapes_ladder.yaml
+name: shapes_ladder
+base: configs/models/cnn_shapes.yaml
+
+seed: 0
+train:
+  epochs: 15
+  lr: 0.001
+  batch_size: 16
+
+stages:
+  - {channels: [4],     fc_hidden: 16}     # etapa 0: red diminuta, desde cero
+  - {channels: [8],     fc_hidden: 16}     # ensancha el bloque conv (exacto, sin bache)
+  - {channels: [8, 16], fc_hidden: 16}     # profundiza: + un bloque conv (warm-start)
+  - {channels: [8, 16], fc_hidden: 32}     # ensancha la cabeza densa (exacto)

@@ -1,0 +1,26 @@
+# CNN sobre el dataset sintético RECTAS vs CURVAS (2 clases). Base para la escalera de crecimiento.
+name: cnn_shapes
+extends: ../base.yaml
+
+dataset:
+  name: lines_curves     # rectas (clase 0) vs curvas (clase 1); test disjunto aparte
+  val_fraction: 0.2
+  split_seed: 0
+  # 60 imágenes (30+30) son demasiado pocas para que la CNN GENERALICE (memoriza el train y
+  # la val se queda en el azar). Se escala el pool de entrenamiento; las 30+30 pedidas siguen
+  # exportadas como muestra visual (scripts/generate_shapes.py -> preview/).
+  n_train_per_class: 400   # pool train -> 640 train / 160 val tras el split
+  n_test_per_class: 100    # test disjunto (otra semilla)
+
+train:
+  epochs: 15
+  lr: 0.001
+  batch_size: 16         # el pool de train es pequeño (48 imgs) -> lotes pequeños
+
+model:
+  name: cnn
+  channels: [8]
+  kernel_size: 3
+  fc_hidden: 32
+  batchnorm: false
+  dropout: 0.0

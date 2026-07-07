@@ -155,7 +155,13 @@ def load_nist_sd19(root: str = "data/raw/sd19", transform: Callable | None = Non
     raise NotImplementedError("load_nist_sd19 pendiente")
 
 
-_LOADERS = {"mnist": load_mnist, "emnist": load_emnist, "nist_sd19": load_nist_sd19}
+def _load_lines_curves(**kwargs) -> DatasetBundle:
+    from .shapes import load_lines_curves   # import perezoso (evita ciclo: shapes importa de aquí)
+    return load_lines_curves(**kwargs)
+
+
+_LOADERS = {"mnist": load_mnist, "emnist": load_emnist, "nist_sd19": load_nist_sd19,
+            "lines_curves": _load_lines_curves}
 
 
 def load_dataset(name: str, transform: Callable | None = None, **kwargs) -> DatasetBundle:
