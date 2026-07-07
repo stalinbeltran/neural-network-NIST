@@ -93,6 +93,7 @@ class Trainer:
         self.history = {"train_loss": [], "val_accuracy": []}
         self.start_epoch = 0          # nº de épocas ya completadas (>0 si se reanuda)
         self._epochs_done = 0
+        self.stop_training = False    # lo activa EarlyStopping para cortar el bucle antes de tiempo
         self._pending_opt_state = None
         self._started = False         # optimizador/scheduler se crean 1 vez (fit incremental por tramos)
 
@@ -200,6 +201,8 @@ class Trainer:
             metrics = {"epoch": epoch, "train_loss": train_loss, "val_accuracy": val_acc}
             for cb in self.callbacks:
                 cb.on_epoch_end(self, epoch, metrics)
+            if self.stop_training:                   # EarlyStopping pidió cortar (val estancada)
+                break
             if self.scheduler is not None:           # avanzar el lr para la siguiente época
                 self.scheduler.step(val_acc) if _is_plateau(self.scheduler) else self.scheduler.step()
         self.start_epoch = self._epochs_done         # continuar desde aquí si se vuelve a llamar a fit

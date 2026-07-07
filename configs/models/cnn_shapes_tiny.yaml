@@ -1,0 +1,30 @@
+# CNN MINÚSCULA para RECTAS vs CURVAS entrenando con POCA DATA (30+30 reales).
+# Receta de poca data (sin augmentation): capacidad mínima + regularización + early stopping,
+# sobre datos de baja variabilidad (formas centradas). ~490 params, entrena en ~1 s.
+#   python scripts/train.py --config configs/models/cnn_shapes_tiny.yaml
+name: cnn_shapes_tiny
+extends: ../base.yaml
+
+dataset:
+  name: lines_curves
+  val_fraction: 0.2
+  split_seed: 0
+  n_train_per_class: 30    # 30 rectas + 30 curvas reales
+  n_test_per_class: 100    # test disjunto amplio para medir bien
+
+train:
+  epochs: 40               # tope; el early stopping cortará mucho antes
+  lr: 0.01                  # una red tan pequeña converge en ~8 épocas con este lr
+  batch_size: 16
+  weight_decay: 0.001      # regularización L2 (frena la memorización)
+  early_stopping:          # para en cuanto la val deja de mejorar y restaura los mejores pesos
+    patience: 8
+    restore_best: true
+
+model:
+  name: cnn
+  channels: [2, 4]         # 2 bloques, poquísimos canales -> flatten pequeño
+  kernel_size: 3
+  fc_hidden: 0             # sin capa densa oculta: Flatten -> Linear(->2). Mínimos parámetros.
+  batchnorm: false
+  dropout: 0.0

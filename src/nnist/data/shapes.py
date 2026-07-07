@@ -35,43 +35,62 @@ def _downsample(img: Image.Image) -> np.ndarray:
     return np.asarray(img.resize((SIZE, SIZE), Image.BILINEAR), dtype=np.uint8)
 
 
-def _make_line(angle_deg: float, rng: np.random.Generator) -> np.ndarray:
-    """Recta que cruza la imagen con inclinación `angle_deg`, con leve jitter de posición."""
+def _make_line(angle_deg: float, pos_jitter: float, rng: np.random.Generator) -> np.ndarray:
+    """Recta CENTRADA que cruza la imagen con inclinación `angle_deg`.
+
+    `pos_jitter` (px) añade desplazamiento aleatorio del centro. Por defecto 0 (baja variabilidad):
+    así la ÚNICA variación entre rectas es la inclinación -> pocas imágenes cubren el espacio y una
+    red diminuta generaliza. Súbelo para un 'modo difícil' que exija más datos/augmentation."""
     img = Image.new("L", (_S, _S), 0)
     draw = ImageDraw.Draw(img)
-    cx = _S / 2 + rng.uniform(-4, 4) * _SS
-    cy = _S / 2 + rng.uniform(-4, 4) * _SS
+    cx = _S / 2 + (rng.uniform(-pos_jitter, pos_jitter) * _SS if pos_jitter else 0.0)
+    cy = _S / 2 + (rng.uniform(-pos_jitter, pos_jitter) * _SS if pos_jitter else 0.0)
     ang = np.deg2rad(angle_deg)
     dx, dy = np.cos(ang) * _S, np.sin(ang) * _S     # longitud 2*_S -> cruza toda la imagen
     draw.line([(cx - dx, cy - dy), (cx + dx, cy + dy)], fill=255, width=_WIDTH)
     return _downsample(img)
 
 
-def _make_curve(radius_frac: float, rng: np.random.Generator) -> np.ndarray:
-    """Arco de circunferencia de radio `radius_frac * _S`, colocado para pasar por el centro."""
+def _make_curve(radius_frac: float, orient_deg: float, span: float,
+                pos_jitter: float, rng: np.random.Generator) -> np.ndarray:
+    """Arco de circunferencia de radio `radius_frac * _S`, con su punto medio pasando por el centro.
+
+    En baja variabilidad la orientación (`orient_deg`) y la amplitud (`span`) son FIJAS: la única
+    variación entre curvas es el radio (curvatura), como pediste. `pos_jitter`/orientación variable
+    se dejan como palancas para endurecer la tarea."""
     img = Image.new("L", (_S, _S), 0)
     draw = ImageDraw.Draw(img)
     r = radius_frac * _S
-    theta0 = rng.uniform(0, 360)                     # dirección del punto medio del arco
-    # centro del círculo tal que el punto (theta0) del arco caiga en el centro de la imagen
-    cx = _S / 2 - np.cos(np.deg2rad(theta0)) * r
-    cy = _S / 2 - np.sin(np.deg2rad(theta0)) * r
-    span = rng.uniform(80, 140)                      # amplitud angular del arco visible
-    draw.arc([cx - r, cy - r, cx + r, cy + r], theta0 - span / 2, theta0 + span / 2,
+    # centro del círculo tal que el punto (orient_deg) del arco caiga en el centro de la imagen
+    ox = rng.uniform(-pos_jitter, pos_jitter) * _SS if pos_jitter else 0.0
+    oy = rng.uniform(-pos_jitter, pos_jitter) * _SS if pos_jitter else 0.0
+    cx = _S / 2 + ox - np.cos(np.deg2rad(orient_deg)) * r
+    cy = _S / 2 + oy - np.sin(np.deg2rad(orient_deg)) * r
+    draw.arc([cx - r, cy - r, cx + r, cy + r], orient_deg - span / 2, orient_deg + span / 2,
              fill=255, width=_WIDTH)
     return _downsample(img)
 
 
 def generate_shapes(split: str, *, n_per_class: int = 30, seed: int = 0,
+                    pos_jitter: float = 0.0, rotate_curves: bool = False,
                     root: str | Path = SHAPES_ROOT, save: bool = True) -> dict:
-    """Genera (y cachea) un split: `n_per_class` rectas (clase 0) + `n_per_class` curvas (clase 1)."""
+    """Genera (y cachea) un split: `n_per_class` rectas (clase 0) + `n_per_class` curvas (clase 1).
+
+    Baja variabilidad por defecto (`pos_jitter=0`, `rotate_curves=False`): rectas centradas que solo
+    varían en inclinación y curvas centradas (pose canónica) que solo varían en radio -> pocas
+    imágenes bastan para generalizar. Un pequeño desfase determinista por semilla evita que dos
+    splits caigan en los MISMOS ángulos/radios (train y test disjuntos pero de la misma distribución).
+    """
     rng = np.random.default_rng(seed)
     imgs, labels = [], []
+    a_off = rng.uniform(0, 180 / n_per_class)           # desfase de ángulo (train != test)
     for angle in np.linspace(0, 180, n_per_class, endpoint=False):
-        imgs.append(_make_line(angle + rng.uniform(-4, 4), rng))
+        imgs.append(_make_line(angle + a_off, pos_jitter, rng))
         labels.append(0)
+    r_off = rng.uniform(0, 0.65 / n_per_class)           # desfase de radio
     for radius in np.linspace(0.35, 1.0, n_per_class):
-        imgs.append(_make_curve(radius, rng))
+        orient = rng.uniform(0, 360) if rotate_curves else 90.0
+        imgs.append(_make_curve(radius + r_off, orient, 140.0, pos_jitter, rng))
         labels.append(1)
     blob = {"images": torch.from_numpy(np.stack(imgs)),
             "labels": torch.tensor(labels, dtype=torch.long), "split": split}
@@ -83,6 +102,7 @@ def generate_shapes(split: str, *, n_per_class: int = 30, seed: int = 0,
 
 
 def load_shapes_blob(split: str, *, n_per_class: int = 30, seed: int = 0,
+                     pos_jitter: float = 0.0, rotate_curves: bool = False,
                      root: str | Path = SHAPES_ROOT, regenerate: bool = False) -> dict:
     """On-demand: reutiliza el `.pt` si existe y tiene el nº de imágenes pedido; si no, (re)genera."""
     path = Path(root) / f"{split}.pt"
@@ -90,7 +110,8 @@ def load_shapes_blob(split: str, *, n_per_class: int = 30, seed: int = 0,
         blob = torch.load(path)
         if len(blob["images"]) == 2 * n_per_class:   # caché válido solo si coincide el tamaño
             return blob
-    return generate_shapes(split, n_per_class=n_per_class, seed=seed, root=root)
+    return generate_shapes(split, n_per_class=n_per_class, seed=seed, pos_jitter=pos_jitter,
+                           rotate_curves=rotate_curves, root=root)
 
 
 class _ShapeDataset(Dataset):
@@ -113,13 +134,17 @@ class _ShapeDataset(Dataset):
 
 def load_lines_curves(transform=None, val_fraction: float = 0.2, split_seed: int = 0,
                       splits_dir: str = "data/splits", n_train_per_class: int = 30,
-                      n_test_per_class: int = 20, root: str | Path = SHAPES_ROOT) -> DatasetBundle:
+                      n_test_per_class: int = 100, pos_jitter: float = 0.0,
+                      rotate_curves: bool = False, root: str | Path = SHAPES_ROOT) -> DatasetBundle:
     """Bundle RECTAS vs CURVAS con la MISMA interfaz que MNIST (train/val/test, 2 clases).
 
     El pool de train (por defecto 30+30, lo pedido) se parte train/val con el split congelado; el
-    test se genera aparte con otra semilla (disjunto del train)."""
-    train_blob = load_shapes_blob("train", n_per_class=n_train_per_class, seed=split_seed, root=root)
-    test_blob = load_shapes_blob("test", n_per_class=n_test_per_class, seed=split_seed + 1000, root=root)
+    test se genera aparte con otra semilla (disjunto del train). Baja variabilidad por defecto
+    (`pos_jitter=0`, `rotate_curves=False`): pocas imágenes bastan para generalizar."""
+    train_blob = load_shapes_blob("train", n_per_class=n_train_per_class, seed=split_seed,
+                                  pos_jitter=pos_jitter, rotate_curves=rotate_curves, root=root)
+    test_blob = load_shapes_blob("test", n_per_class=n_test_per_class, seed=split_seed + 1000,
+                                 pos_jitter=pos_jitter, rotate_curves=rotate_curves, root=root)
 
     full_train = _ShapeDataset(train_blob["images"], train_blob["labels"], transform)
     test = _ShapeDataset(test_blob["images"], test_blob["labels"], transform)

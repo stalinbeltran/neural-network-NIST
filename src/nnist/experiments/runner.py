@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from ..data import build_transform, load_dataset
 from ..evaluation import RunResult, classification_report
 from ..models import build_model
-from ..training import ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
+from ..training import EarlyStopping, ModelCheckpoint, TrainConfig, Trainer, TrainingLogger
 from ..utils import get_logger, log_training, set_seed
 
 logger = get_logger("nnist.runner")
@@ -75,6 +75,7 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
     # 3. entrenamiento (pesos con TRAIN, monitorización/selección con VAL)
     train_dict = dict(config.train)
     checkpoint_every = train_dict.pop("checkpoint_every", None)   # opt-in; no es campo de TrainConfig
+    early_stop = train_dict.pop("early_stopping", None)           # opt-in; int (patience) o dict
     train_cfg = TrainConfig(**train_dict)
     train_loader = DataLoader(bundle.train, batch_size=train_cfg.batch_size, shuffle=True)
     val_loader = DataLoader(bundle.val, batch_size=train_cfg.batch_size, shuffle=False)
@@ -98,6 +99,9 @@ def run(config, output_root: str = "experiments", resume_from: str | None = None
                                 datos=f"{config.dataset['name']} ({strategy})", checkpoint=ckpt_txt)]
     if checkpoint_every:
         callbacks.append(ModelCheckpoint(out_dir / "checkpoint.pt", every=checkpoint_every))
+    if early_stop is not None:
+        es_kwargs = {"patience": early_stop} if isinstance(early_stop, int) else dict(early_stop)
+        callbacks.append(EarlyStopping(**es_kwargs))
     trainer = Trainer(model, train_cfg, callbacks=callbacks)
 
     if resume_from:
